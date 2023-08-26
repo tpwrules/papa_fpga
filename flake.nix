@@ -22,7 +22,7 @@
       { inherit pkgs flakeInputs pleaseKeepMyInputs; };
 
     packages."${system}" = {
-      soc_system = pkgs.soc_system;
+      inherit (pkgs) quartus soc_system;
     };
   };
 }

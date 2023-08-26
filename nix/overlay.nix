@@ -4,4 +4,6 @@ final: prev: {
   };
 
   soc_system = final.callPackage ./local/soc_system {};
+
+  quartus = final.callPackage ./local/quartus {};
 }
