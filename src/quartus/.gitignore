@@ -1,0 +1,6 @@
+db/
+greybox_tmp/
+*.done
+*.rpt
+*.qws
+*.qdf
