@@ -1,0 +1,6 @@
+DATE = "14:44:15 August 26, 2023"
+QUARTUS_VERSION = "16.0.2"
+
+# Revisions
+
+PROJECT_REVISION = "de10_nano_nixos_led"
