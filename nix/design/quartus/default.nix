@@ -18,8 +18,6 @@ stdenvNoCC.mkDerivation {
     "[^/]*\.tcl$"
   ];
 
-  nativeBuildInputs = [ quartus-prime-lite ];
-
   postUnpack = ''
     cp -r ${soc_system}/* source/
     chmod -R u+w source/
@@ -28,7 +26,7 @@ stdenvNoCC.mkDerivation {
   buildPhase = ''
     runHook preBuild
 
-    quartus_sh --flow compile *.qpf
+    ${quartus-prime-lite}/bin/quartus_sh --flow compile *.qpf
 
     runHook postBuild
   '';
