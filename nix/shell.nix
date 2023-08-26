@@ -2,7 +2,9 @@
 
 pkgs.mkShell {
   buildInputs = [
-    pkgs.hello
+    (pkgs.quartus-prime-lite.override {
+      supportedDevices = [ "Cyclone V" ];
+    })
 
     pleaseKeepMyInputs
   ];
