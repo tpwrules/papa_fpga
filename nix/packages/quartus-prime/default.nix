@@ -25,6 +25,8 @@ in buildFHSEnvChroot rec {
     # qsys requirements
     xorg.libXtst
     xorg.libXi
+    dejavu_fonts
+    gnumake
   ];
   multiPkgs = pkgs: with pkgs; let
     # This seems ugly - can we override `libpng = libpng12` for all `pkgs`?
