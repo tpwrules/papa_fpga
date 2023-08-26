@@ -84,6 +84,10 @@ in stdenv.mkDerivation rec {
         --mode unattended --installdir $out --accept_eula 1
 
       rm -r $out/uninstall $out/logs
+
+      # remove check for pentium processors by replacing check with a true statement
+      substituteInPlace $out/quartus/adm/qenv.sh \
+        --replace 'grep sse /proc/cpuinfo > /dev/null 2>&1' ':'
     '';
 
   meta = with lib; {
