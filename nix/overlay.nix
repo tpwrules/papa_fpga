@@ -3,7 +3,8 @@ final: prev: {
     supportedDevices = [ "Cyclone V" ];
   };
 
-  soc_system = final.callPackage ./local/soc_system {};
-
-  quartus = final.callPackage ./local/quartus {};
+  design = prev.lib.makeScope prev.newScope (self: with self; {
+    soc_system = callPackage ./design/soc_system {};
+    quartus = callPackage ./design/quartus {};
+  });
 }

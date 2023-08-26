@@ -7,7 +7,7 @@
 stdenvNoCC.mkDerivation {
   name = "quartus";
 
-  src = lib.sources.sourceByRegex ./../../../src/quartus [
+  src = lib.sources.sourceByRegex ./../../../design/quartus [
     "ip/?[^.]*"
     "ip/.*\.qip$"
     "ip/.*\.v$"
