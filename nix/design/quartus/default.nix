@@ -37,7 +37,7 @@ stdenvNoCC.mkDerivation {
     runHook preInstall
 
     mkdir -p $out
-    cp -r * $out
+    cp *.sof $out/quartus.sof
 
     runHook postInstall
   '';
