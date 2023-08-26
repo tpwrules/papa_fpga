@@ -20,6 +20,10 @@
   in {
     devShell."${system}" = import ./nix/shell.nix
       { inherit pkgs flakeInputs pleaseKeepMyInputs; };
+
+    packages."${system}" = {
+      soc_system = pkgs.soc_system;
+    };
   };
 }
 
