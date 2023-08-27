@@ -8,10 +8,19 @@
 
   boot.loader.generic-extlinux-compatible.enable = true;
   boot.loader.grub.enable = false;
+  boot.kernelParams = [
+    "console=ttyS0,115200"
+  ];
 
   sdImage.populateRootCommands = ''
     mkdir -p ./files/boot
     ${config.boot.loader.generic-extlinux-compatible.populateCmd} -c ${config.system.build.toplevel} -d ./files/boot
+
+    # HACK: shorten DTB name so u-boot can load it for now
+    # we also use the de0 nano DTB since there is no de10 nano in mainline kernel
+    FDTDIR=$(echo ./files/boot/nixos/*-dtbs)
+    chmod -R u+w $FDTDIR
+    mv $FDTDIR/socfpga_cyclone5_de0_nano_soc.dtb $FDTDIR/x.dtb
   '';
 
   sdImage.populateFirmwareCommands = ''
