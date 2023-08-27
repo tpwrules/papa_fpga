@@ -16,14 +16,32 @@
     mkdir -p ./files/boot
     ${config.boot.loader.generic-extlinux-compatible.populateCmd} -c ${config.system.build.toplevel} -d ./files/boot
 
-    # HACK: shorten DTB name so u-boot can load it for now
-    # we also use the de0 nano DTB since there is no de10 nano in mainline kernel
+    # use the de0 nano DTB since there is no de10 nano in mainline kernel
+    # and it seems to work okay
     FDTDIR=$(echo ./files/boot/nixos/*-dtbs)
     chmod -R u+w $FDTDIR
-    mv $FDTDIR/socfpga_cyclone5_de0_nano_soc.dtb $FDTDIR/x.dtb
+    mv $FDTDIR/socfpga_cyclone5_de0_nano_soc.dtb $FDTDIR/socfpga_cyclone5_de10_nano.dtb
   '';
 
   sdImage.populateFirmwareCommands = ''
+  '';
+
+  # install u-boot starting at 1MB in, not sure if it needs to be a partition
+  # or have type A2 or if it's just a fixed location.
+  sdImage.firmwareSize = 2;
+  sdImage.firmwarePartitionOffset = 1;
+  sdImage.postBuildCommands = let
+    uboot = pkgs.buildUBoot {
+      defconfig = "socfpga_de10_nano_defconfig";
+      filesToInstall = ["u-boot-with-spl.sfp"];
+      # automatically boot by default
+      extraConfig = ''
+        CONFIG_USE_BOOTCOMMAND=y
+      '';
+    };
+  in ''
+    dd if=${uboot}/u-boot-with-spl.sfp of=$img bs=1M seek=1 conv=notrunc
+    sfdisk --part-type $img 1 a2
   '';
 
   # Use less privileged nixos user
