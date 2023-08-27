@@ -24,5 +24,30 @@
     packages."${system}" = {
       inherit (pkgs) design;
     };
+
+    nixosConfigurations.de10-nano = let
+      installer-system = nixpkgs.lib.nixosSystem {
+        inherit system;
+
+        pkgs = import nixpkgs {
+          crossSystem.system = "armv7l-linux";
+          localSystem.system = system;
+          overlays = [ (import ./nix/overlay.nix) ];
+        };
+
+        specialArgs = {
+          modulesPath = nixpkgs + "/nixos/modules";
+        };
+
+        modules = [
+          ./nix/nixos/sd-image
+        ];
+      };
+
+      config = installer-system.config;
+    in (config.system.build.sdImage.overrideAttrs (old: {
+      # add ability to access the whole config from the command line
+      passthru = (old.passthru or {}) // { inherit config; };
+    }));
   };
 }
