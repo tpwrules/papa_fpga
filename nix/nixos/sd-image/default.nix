@@ -67,12 +67,12 @@
   # Automatically log in at the virtual consoles.
   services.getty.autologinUser = "nixos";
 
-  environment.systemPackages = with pkgs; lib.mkForce [
-    bash
-    nano
-    nix
-    coreutils
-  ];
+  # environment.systemPackages = with pkgs; lib.mkForce [
+  #   bash
+  #   nano
+  #   nix
+  #   coreutils
+  # ];
 
   # save space and compilation time. might revise?
   hardware.enableAllFirmware = lib.mkForce false;
