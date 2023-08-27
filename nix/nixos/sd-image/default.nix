@@ -26,10 +26,11 @@
   sdImage.populateFirmwareCommands = ''
   '';
 
-  # install u-boot starting at 1MB in, not sure if it needs to be a partition
-  # or have type A2 or if it's just a fixed location.
-  sdImage.firmwareSize = 2;
-  sdImage.firmwarePartitionOffset = 1;
+  # u-boot and the SPL live in a partition with a specific MBR ID. we reuse
+  # the firmware partition for this purpose and then use DD to write the image
+  # into the partition space
+  sdImage.firmwareSize = 2; # 2MiB space like stock SD image, binary is about 800K
+  sdImage.firmwarePartitionOffset = 1; # 1MiB in
   sdImage.postBuildCommands = let
     uboot = pkgs.buildUBoot {
       defconfig = "socfpga_de10_nano_defconfig";
@@ -40,7 +41,9 @@
       '';
     };
   in ''
+    # write u-boot and SPL into "firmware" partition space
     dd if=${uboot}/u-boot-with-spl.sfp of=$img bs=1M seek=1 conv=notrunc
+    # set MBR ID to 0xA2 so the boot ROM will use this partition
     sfdisk --part-type $img 1 a2
   '';
 
