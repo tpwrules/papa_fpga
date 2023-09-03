@@ -8,6 +8,7 @@
 
   boot.loader.generic-extlinux-compatible.enable = true;
   boot.loader.grub.enable = false;
+  boot.loader.timeout = 1;
   boot.kernelParams = [
     "console=ttyS0,115200"
   ];
