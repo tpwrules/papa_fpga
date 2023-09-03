@@ -1,0 +1,45 @@
+/dts-v1/;
+/plugin/;
+
+/{
+    fragment@0 {
+        target-path = "/soc/base_fpga_region";
+        __overlay__ {
+            #address-cells = <1>;
+            #size-cells = <1>;
+            firmware-name = "bitstream.rbf";
+        };
+    };
+
+    fragment@1 {
+        target-path = "/soc/fpga_bridge@ff400000";
+        __overlay__ {
+            status = "okay";
+            bridge-enable = <1>;
+        };
+    };
+
+    fragment@2 {
+        target-path = "/soc/fpga_bridge@ff500000";
+        __overlay__ {
+            status = "okay";
+            bridge-enable = <1>;
+        };
+    };
+
+    fragment@3 {
+        target-path = "/soc/fpga-bridge@ff600000";
+        __overlay__ {
+            status = "okay";
+            bridge-enable = <1>;
+        };
+    };
+
+    fragment@4 {
+        target-path = "/soc/fpga-bridge@ffc25080";
+        __overlay__ {
+            status = "okay";
+            bridge-enable = <1>;
+        };
+    };
+};
