@@ -67,12 +67,20 @@
   # Automatically log in at the virtual consoles.
   services.getty.autologinUser = "nixos";
 
-  # environment.systemPackages = with pkgs; lib.mkForce [
-  #   bash
-  #   nano
-  #   nix
-  #   coreutils
-  # ];
+  boot.kernelPatches = [
+    {
+      name = "enable-of-overlay";
+      patch = ./dt-overlay-configfs-interface.patch;
+      extraConfig = ''
+        OF_OVERLAY y
+        OF_CONFIGFS y
+      '';
+    }
+  ];
+
+  environment.systemPackages = with pkgs; [
+    dtc
+  ];
 
   # save space and compilation time. might revise?
   hardware.enableAllFirmware = lib.mkForce false;
