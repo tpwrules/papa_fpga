@@ -71,9 +71,14 @@
     {
       name = "enable-of-overlay";
       patch = ./dt-overlay-configfs-interface.patch;
+      # 1. enable overlay system and configfs so we can add the overlay
+      # 2. disable protections on /dev/mem so we can poke our FPGA design through it
       extraConfig = ''
         OF_OVERLAY y
         OF_CONFIGFS y
+
+        STRICT_DEVMEM n
+        IO_STRICT_DEVMEM n
       '';
     }
   ];
