@@ -6,7 +6,7 @@
 stdenvNoCC.mkDerivation {
   name = "soc_system";
 
-  src = lib.sources.sourceByRegex ./../../../design/qsys [
+  src = lib.sources.sourceByRegex ./../../../design/soc_system [
     ".*\.qsys$"
   ];
 

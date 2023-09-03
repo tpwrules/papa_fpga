@@ -5,9 +5,9 @@
 }:
 
 stdenvNoCC.mkDerivation {
-  name = "quartus";
+  name = "bitstream";
 
-  src = lib.sources.sourceByRegex ./../../../design/quartus [
+  src = lib.sources.sourceByRegex ./../../../design/bitstream [
     "ip/?[^.]*"
     "ip/.*\.qip$"
     "ip/.*\.v$"
@@ -35,7 +35,7 @@ stdenvNoCC.mkDerivation {
     runHook preInstall
 
     mkdir -p $out
-    cp *.sof $out/quartus.sof
+    cp *.sof $out/bitstream.sof
 
     runHook postInstall
   '';
