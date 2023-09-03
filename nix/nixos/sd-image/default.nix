@@ -1,4 +1,4 @@
-{ config, pkgs, lib, modulesPath, ... }:
+{ config, pkgs, lib, modulesPath, design, ... }:
 
 {
   imports = [
@@ -25,6 +25,8 @@
 
   sdImage.populateFirmwareCommands = ''
   '';
+
+  hardware.firmware = [ design.linux_firmware ];
 
   # u-boot and the SPL live in a partition with a specific MBR ID. we reuse
   # the firmware partition for this purpose and then use DD to write the image
@@ -83,8 +85,19 @@
     }
   ];
 
-  environment.systemPackages = with pkgs; [
+  environment.systemPackages = let
+    demo = pkgs.writeShellScriptBin "demo" ''
+      echo "Configuring FPGA..."
+      sudo mkdir -p /sys/kernel/config/device-tree/overlays/bitstream
+      # looks in /lib/firmware
+      echo -n "bitstream.dtbo" | sudo tee /sys/kernel/config/device-tree/overlays/bitstream/path
+      sleep 3 # is there a way to do this synchronously?
+      echo "Running application..."
+      sudo ${design.application}/bin/HPS_FPGA_LED
+    '';
+  in with pkgs; [
     dtc
+    demo
   ];
 
   # save space and compilation time. might revise?

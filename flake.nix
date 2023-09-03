@@ -32,11 +32,13 @@
         pkgs = import nixpkgs {
           crossSystem.system = "armv7l-linux";
           localSystem.system = system;
+          config = { allowUnfree = true; };
           overlays = [ (import ./nix/overlay.nix) ];
         };
 
         specialArgs = {
           modulesPath = nixpkgs + "/nixos/modules";
+          inherit (pkgs) design; # HACK to use the expected pkgs
         };
 
         modules = [
