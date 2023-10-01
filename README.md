@@ -17,4 +17,4 @@ Todo:
 * some cool automatic way of assigning a MAC address
 * more reasonable way of setting up bitstream under Linux
 * bitstream compression and faster loading
-* integrate Amaranth
+* integrate Amaranth better incl. simulation

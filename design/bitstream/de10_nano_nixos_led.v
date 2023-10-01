@@ -262,22 +262,13 @@ defparam pulse_debug_reset.PULSE_EXT = 32;
 defparam pulse_debug_reset.EDGE_TYPE = 1;
 defparam pulse_debug_reset.IGNORE_RST_WHILE_BUSY = 1;
 
-reg [25: 0] counter;
-reg led_level;
-always @(posedge fpga_clk_50 or negedge hps_fpga_reset_n) begin
-    if (~hps_fpga_reset_n) begin
-        counter <= 0;
-        led_level <= 0;
-    end
+wire blink;
+amaranth_top amaranth_top(
+    .clk50(fpga_clk_50),
+    .rst(~hps_fpga_reset_n),
+    .blink(blink)
+);
 
-    else if (counter == 24999999) begin
-        counter <= 0;
-        led_level <= ~led_level;
-    end
-    else
-        counter <= counter + 1'b1;
-end
-
-assign LED[0] = led_level;
+assign LED[0] = blink;
 
 endmodule

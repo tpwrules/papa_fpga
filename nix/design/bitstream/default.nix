@@ -2,6 +2,7 @@
 , lib
 , quartus-prime-lite
 , soc_system
+, amaranth_top
 }:
 
 stdenvNoCC.mkDerivation {
@@ -20,6 +21,7 @@ stdenvNoCC.mkDerivation {
 
   postUnpack = ''
     cp -r ${soc_system}/* source/
+    cp -r ${amaranth_top}/* source/
     chmod -R u+w source/
   '';
 
