@@ -99,6 +99,10 @@
   in with pkgs; [
     dtc
     demo
+
+    (python3.withPackages (p: [
+      p.numpy
+    ]))
   ];
 
   # save space and compilation time. might revise?
