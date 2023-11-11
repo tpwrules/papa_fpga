@@ -3,6 +3,7 @@ from amaranth.lib import wiring
 from amaranth.lib.wiring import In, Out
 from amaranth.lib.cdc import FFSynchronizer
 from amaranth.sim.core import Simulator, Delay, Settle
+from .misc import Rose, Fell
 
 class MicClockGenerator(wiring.Component):
     # generate the microphone clock suitable for wiring to the microphone's
@@ -37,14 +38,137 @@ class MicClockGenerator(wiring.Component):
 
         return m
 
+class MicDataReceiver(wiring.Component):
+    # receive data from a microphone
+    mic_sck: In(1)
+    mic_data: In(1)
+    cycle: In(range(64))
+
+    sample_l: Out(24)
+    sample_r: Out(24)
+    sample_new: Out(1) # pulsed when new sample data is available
+
+    def elaborate(self, platform):
+        m = Module()
+
+        # synchronize mic data
+        mic_data_sync = Signal()
+        m.submodules += FFSynchronizer(self.mic_data, mic_data_sync)
+
+        buffer = Signal(64)
+        # shift in new data on rising edge of clock into the MSB of buffer
+        with m.If(self.mic_sck):
+            m.d.sync += buffer.eq(Cat(buffer[1:], mic_data_sync))
+
+        m.d.sync += self.sample_new.eq(0) # usually no data available
+        # once the frame is over, save the data in the outputs
+        with m.If((self.cycle == 0) & self.mic_sck):
+            m.d.sync += [
+                self.sample_l.eq(buffer[1:25][::-1]),
+                self.sample_r.eq(buffer[33:57][::-1]),
+                self.sample_new.eq(1),
+            ]
+
+        return m
+
+class FakeMic(wiring.Component):
+    # fake microphone output data in accordance with timing diagrams
+    # (assumes mic_sck is half "sync"'s clock rate)
+    mic_sck: In(1)
+    mic_ws: In(1)
+
+    mic_data: Out(1)
+
+    def __init__(self, channel, start=0):
+        super().__init__()
+
+        if channel == "left":
+            self._sensitive = Fell
+        elif channel == "right":
+            self._sensitive = Rose
+        else:
+            raise ValueError("bad channel")
+
+        self._start = start
+
+    def elaborate(self, platform):
+        m = Module()
+
+        counter = Signal(24, reset=self._start)
+        sample = Signal(24)
+        buffer = Signal(24)
+
+        # on rising edge of word select, sample the "sound"
+        with m.If(Rose(m, self.mic_ws)):
+            m.d.sync += [
+                sample.eq(counter),
+                counter.eq(counter+1),
+            ]
+
+        # when the correct word select is asserted, move sample to buffer to
+        # shift out
+        with m.If(self._sensitive(m, self.mic_ws)):
+            m.d.sync += buffer.eq(sample)
+
+        # shift the buffer on the rising edge so it comes out synchronous with
+        # the falling edge
+        with m.If(Rose(m, self.mic_sck)):
+            m.d.sync += [
+                buffer.eq(buffer << 1),
+                self.mic_data.eq(buffer[-1]),
+            ]
+
+        return m
+
+class MicDemo(wiring.Component):
+    mic_sck: Out(1)
+
+    sample_l: Out(24)
+    sample_r: Out(24)
+    sample_new: Out(1)
+
+    def elaborate(self, platform):
+        m = Module()
+
+        m.submodules.mic_clk = mic_clk = MicClockGenerator()
+        m.submodules.mic_rcv = mic_rcv = MicDataReceiver()
+        m.submodules.mic_l = mic_l = FakeMic("left", start=0xaa1000)
+        m.submodules.mic_r = mic_r = FakeMic("right", start=0xaa2000)
+
+        # wire clock to data receiver
+        m.d.comb += [
+            mic_rcv.mic_sck.eq(mic_clk.mic_sck),
+            mic_rcv.cycle.eq(mic_clk.cycle),
+        ]
+
+        # wire mics up
+        m.d.comb += [
+            mic_l.mic_sck.eq(mic_clk.mic_sck),
+            mic_r.mic_sck.eq(mic_clk.mic_sck),
+            mic_l.mic_ws.eq(mic_clk.mic_ws),
+            mic_r.mic_ws.eq(mic_clk.mic_ws),
+            mic_rcv.mic_data.eq(mic_l.mic_data | mic_r.mic_data),
+        ]
+
+        # wire demo outputs
+        m.d.comb += [
+            self.mic_sck.eq(mic_clk.mic_sck),
+
+            self.sample_l.eq(mic_rcv.sample_l),
+            self.sample_r.eq(mic_rcv.sample_r),
+            self.sample_new.eq(mic_rcv.sample_new),
+        ]
+
+        return m
+
 def demo():
-    mic = MicClockGenerator()
-    sim = Simulator(mic)
+    top = MicDemo()
+    sim = Simulator(top)
     sim.add_clock(1/(2*48000*64), domain="sync")
 
     mod_traces = []
-    for name in mic.signature.members.keys():
-        mod_traces.append(getattr(mic, name))
+    for name in top.signature.members.keys():
+        mod_traces.append(getattr(top, name))
 
     clk_hack = sim._fragment.domains["sync"].clk
     with sim.write_vcd("mic_demo.vcd", "mic_demo.gtkw",
