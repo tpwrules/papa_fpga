@@ -7,17 +7,18 @@ from .misc import Rose, Fell
 
 class MicClockGenerator(wiring.Component):
     # generate the microphone clock suitable for wiring to the microphone's
-    # input pins. the generated clock is half the module clock. the cycle
-    # output represents the current input data cycle; it is delayed with
-    # FFSynchronizers so it is synchronous with input data.
+    # input pins. the generated clock is half the module clock.
     mic_sck: Out(1)
     mic_ws: Out(1)
-    cycle: Out(range(64))
+    # pulsed on the cycle the mic transmits the first frame data bit.
+    # (cycle after WS falls, before FF delay) (note also the first data bit is
+    # hi-z and these cycles are with reference to the module clock)
+    mic_data_sof_sync: Out(1)
 
     def elaborate(self, platform):
         m = Module()
 
-        # local non-delayed cycle counter
+        # cycle counter within the frame
         cycle = Signal(range(64))
 
         # toggle clock
@@ -33,8 +34,10 @@ class MicClockGenerator(wiring.Component):
         with m.If((cycle == 31) & self.mic_sck):
             m.d.sync += self.mic_ws.eq(1)
 
-        # generate delayed cycle counter for input modules
-        m.submodules += FFSynchronizer(cycle, self.cycle)
+        mic_data_sof = Signal()
+        m.d.comb += mic_data_sof.eq((cycle == 0) & self.mic_sck)
+        # generate delayed start of frame pulse for input modules
+        m.submodules += FFSynchronizer(mic_data_sof, self.mic_data_sof_sync)
 
         return m
 
@@ -42,7 +45,7 @@ class MicDataReceiver(wiring.Component):
     # receive data from a microphone
     mic_sck: In(1)
     mic_data: In(1)
-    cycle: In(range(64))
+    mic_data_sof_sync: In(1)
 
     sample_l: Out(24)
     sample_r: Out(24)
@@ -51,7 +54,7 @@ class MicDataReceiver(wiring.Component):
     def elaborate(self, platform):
         m = Module()
 
-        # synchronize mic data
+        # synchronize mic data to module clock
         mic_data_sync = Signal()
         m.submodules += FFSynchronizer(self.mic_data, mic_data_sync)
 
@@ -62,7 +65,7 @@ class MicDataReceiver(wiring.Component):
 
         m.d.sync += self.sample_new.eq(0) # usually no data available
         # once the frame is over, save the data in the outputs
-        with m.If((self.cycle == 0) & self.mic_sck):
+        with m.If(self.mic_data_sof_sync):
             m.d.sync += [
                 self.sample_l.eq(buffer[1:25][::-1]),
                 self.sample_r.eq(buffer[33:57][::-1]),
@@ -138,7 +141,7 @@ class MicDemo(wiring.Component):
         # wire clock to data receiver
         m.d.comb += [
             mic_rcv.mic_sck.eq(mic_clk.mic_sck),
-            mic_rcv.cycle.eq(mic_clk.cycle),
+            mic_rcv.mic_data_sof_sync.eq(mic_clk.mic_data_sof_sync),
         ]
 
         # wire mics up
