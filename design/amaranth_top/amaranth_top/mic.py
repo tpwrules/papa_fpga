@@ -3,7 +3,6 @@ from amaranth.lib import wiring
 from amaranth.lib.wiring import In, Out
 from amaranth.lib.cdc import FFSynchronizer
 from amaranth.sim.core import Simulator, Delay, Settle
-from .misc import Rose, Fell
 
 class MicClockGenerator(wiring.Component):
     # generate the microphone clock suitable for wiring to the microphone's
@@ -86,9 +85,9 @@ class FakeMic(wiring.Component):
         super().__init__()
 
         if channel == "left":
-            self._sensitive = Fell
+            self._sensitive = self._fell
         elif channel == "right":
-            self._sensitive = Rose
+            self._sensitive = self._rose
         else:
             raise ValueError("bad channel")
 
@@ -102,7 +101,7 @@ class FakeMic(wiring.Component):
         buffer = Signal(24)
 
         # on rising edge of word select, sample the "sound"
-        with m.If(Rose(m, self.mic_ws)):
+        with m.If(self._rose(m, self.mic_ws)):
             m.d.sync += [
                 sample.eq(counter),
                 counter.eq(counter+1),
@@ -115,13 +114,31 @@ class FakeMic(wiring.Component):
 
         # shift the buffer on the rising edge so it comes out synchronous with
         # the falling edge
-        with m.If(Rose(m, self.mic_sck)):
+        with m.If(self._rose(m, self.mic_sck)):
             m.d.sync += [
                 buffer.eq(buffer << 1),
                 self.mic_data.eq(buffer[-1]),
             ]
 
         return m
+
+    def _rose(self, m, s):
+        assert len(s) == 1
+
+        # avoid false triggering on first cycle of design if signal starts high
+        last = Signal(1, reset=1)
+        m.d.sync += last.eq(s) # only applies when conditions match where called
+
+        return ~last & s
+
+    def _fell(self, m, s):
+        assert len(s) == 1
+
+        # avoid false triggering on first cycle of design if signal starts low
+        last = Signal(1, reset=0)
+        m.d.sync += last.eq(s) # only applies when conditions match where called
+
+        return last & ~s
 
 class MicDemo(wiring.Component):
     mic_sck: Out(1)
