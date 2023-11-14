@@ -115,11 +115,38 @@ wire                hps_debug_reset;
 wire     [27: 0]    stm_hw_events;
 wire                fpga_clk_50;
 // connection of internal logics
-assign LED[7: 1] = fpga_led_internal;
+assign LED[7: 4] = fpga_led_internal;
 assign fpga_clk_50 = FPGA_CLK1_50;
 assign stm_hw_events = {{15{1'b0}}, SW, fpga_led_internal, fpga_debounced_buttons};
 
-
+wire [6:0]  f2h_axi_s0_awid                       ;//                     f2h_axi_s0.awid
+wire [31:0] f2h_axi_s0_awaddr                     ;//                               .awaddr
+wire [7:0]  f2h_axi_s0_awlen                      ;//                               .awlen
+wire [2:0]  f2h_axi_s0_awsize                     ;//                               .awsize
+wire [1:0]  f2h_axi_s0_awburst                    ;//                               .awburst
+wire [3:0]  f2h_axi_s0_awcache                    ;//                               .awcache
+wire [63:0] f2h_axi_s0_awuser                     ;//                               .awuser
+wire        f2h_axi_s0_awvalid                    ;//                               .awvalid
+wire        f2h_axi_s0_awready                    ;//                               .awready
+wire [31:0] f2h_axi_s0_wdata                      ;//                               .wdata
+wire [3:0]  f2h_axi_s0_wstrb                      ;//                               .wstrb
+wire        f2h_axi_s0_wvalid                     ;//                               .wvalid
+wire        f2h_axi_s0_wready                     ;//                               .wready
+wire [6:0]  f2h_axi_s0_bid                        ;//                               .bid
+wire        f2h_axi_s0_bvalid                     ;//                               .bvalid
+wire        f2h_axi_s0_bready                     ;//                               .bready
+wire [6:0]  f2h_axi_s0_arid                       ;//                               .arid
+wire [31:0] f2h_axi_s0_araddr                     ;//                               .araddr
+wire [7:0]  f2h_axi_s0_arlen                      ;//                               .arlen
+wire [2:0]  f2h_axi_s0_arsize                     ;//                               .arsize
+wire [1:0]  f2h_axi_s0_arburst                    ;//                               .arburst
+wire        f2h_axi_s0_arvalid                    ;//                               .arvalid
+wire        f2h_axi_s0_arready                    ;//                               .arready
+wire [6:0]  f2h_axi_s0_rid                        ;//                               .rid
+wire [31:0] f2h_axi_s0_rdata                      ;//                               .rdata
+wire        f2h_axi_s0_rlast                      ;//                               .rlast
+wire        f2h_axi_s0_rvalid                     ;//                               .rvalid
+wire        f2h_axi_s0_rready                     ;//                               .rready
 
 //=======================================================
 //  Structural coding
@@ -212,6 +239,34 @@ soc_system u0(
                .hps_0_f2h_stm_hw_events_stm_hwevents(stm_hw_events),        //        hps_0_f2h_stm_hw_events.stm_hwevents
                .hps_0_f2h_warm_reset_req_reset_n(~hps_warm_reset),          //       hps_0_f2h_warm_reset_req.reset_n
 
+               .f2h_axi_s0_awid(f2h_axi_s0_awid),
+               .f2h_axi_s0_awaddr(f2h_axi_s0_awaddr),
+               .f2h_axi_s0_awlen(f2h_axi_s0_awlen),
+               .f2h_axi_s0_awsize(f2h_axi_s0_awsize),
+               .f2h_axi_s0_awburst(f2h_axi_s0_awburst),
+               .f2h_axi_s0_awcache(f2h_axi_s0_awcache),
+               .f2h_axi_s0_awuser(f2h_axi_s0_awuser),
+               .f2h_axi_s0_awvalid(f2h_axi_s0_awvalid),
+               .f2h_axi_s0_awready(f2h_axi_s0_awready),
+               .f2h_axi_s0_wdata(f2h_axi_s0_wdata),
+               .f2h_axi_s0_wstrb(f2h_axi_s0_wstrb),
+               .f2h_axi_s0_wvalid(f2h_axi_s0_wvalid),
+               .f2h_axi_s0_wready(f2h_axi_s0_wready),
+               .f2h_axi_s0_bid(f2h_axi_s0_bid),
+               .f2h_axi_s0_bvalid(f2h_axi_s0_bvalid),
+               .f2h_axi_s0_bready(f2h_axi_s0_bready),
+               .f2h_axi_s0_arid(f2h_axi_s0_arid),
+               .f2h_axi_s0_araddr(f2h_axi_s0_araddr),
+               .f2h_axi_s0_arlen(f2h_axi_s0_arlen),
+               .f2h_axi_s0_arsize(f2h_axi_s0_arsize),
+               .f2h_axi_s0_arburst(f2h_axi_s0_arburst),
+               .f2h_axi_s0_arvalid(f2h_axi_s0_arvalid),
+               .f2h_axi_s0_arready(f2h_axi_s0_arready),
+               .f2h_axi_s0_rid(f2h_axi_s0_rid),
+               .f2h_axi_s0_rdata(f2h_axi_s0_rdata),
+               .f2h_axi_s0_rlast(f2h_axi_s0_rlast),
+               .f2h_axi_s0_rvalid(f2h_axi_s0_rvalid),
+               .f2h_axi_s0_rready(f2h_axi_s0_rready),
            );
 
 // Debounce logic to clean out glitches within 1ms
@@ -263,12 +318,45 @@ defparam pulse_debug_reset.EDGE_TYPE = 1;
 defparam pulse_debug_reset.IGNORE_RST_WHILE_BUSY = 1;
 
 wire blink;
+wire [2:0] status;
 amaranth_top amaranth_top(
     .clk50(fpga_clk_50),
     .rst(~hps_fpga_reset_n),
-    .blink(blink)
+    .blink(blink),
+    .status(status),
+    .button(KEY[0]),
+
+    .f2h_axi_s0_awid(f2h_axi_s0_awid),
+    .f2h_axi_s0_awaddr(f2h_axi_s0_awaddr),
+    .f2h_axi_s0_awlen(f2h_axi_s0_awlen),
+    .f2h_axi_s0_awsize(f2h_axi_s0_awsize),
+    .f2h_axi_s0_awburst(f2h_axi_s0_awburst),
+    .f2h_axi_s0_awcache(f2h_axi_s0_awcache),
+    .f2h_axi_s0_awuser(f2h_axi_s0_awuser),
+    .f2h_axi_s0_awvalid(f2h_axi_s0_awvalid),
+    .f2h_axi_s0_awready(f2h_axi_s0_awready),
+    .f2h_axi_s0_wdata(f2h_axi_s0_wdata),
+    .f2h_axi_s0_wstrb(f2h_axi_s0_wstrb),
+    .f2h_axi_s0_wvalid(f2h_axi_s0_wvalid),
+    .f2h_axi_s0_wready(f2h_axi_s0_wready),
+    .f2h_axi_s0_bid(f2h_axi_s0_bid),
+    .f2h_axi_s0_bvalid(f2h_axi_s0_bvalid),
+    .f2h_axi_s0_bready(f2h_axi_s0_bready),
+    .f2h_axi_s0_arid(f2h_axi_s0_arid),
+    .f2h_axi_s0_araddr(f2h_axi_s0_araddr),
+    .f2h_axi_s0_arlen(f2h_axi_s0_arlen),
+    .f2h_axi_s0_arsize(f2h_axi_s0_arsize),
+    .f2h_axi_s0_arburst(f2h_axi_s0_arburst),
+    .f2h_axi_s0_arvalid(f2h_axi_s0_arvalid),
+    .f2h_axi_s0_arready(f2h_axi_s0_arready),
+    .f2h_axi_s0_rid(f2h_axi_s0_rid),
+    .f2h_axi_s0_rdata(f2h_axi_s0_rdata),
+    .f2h_axi_s0_rlast(f2h_axi_s0_rlast),
+    .f2h_axi_s0_rvalid(f2h_axi_s0_rvalid),
+    .f2h_axi_s0_rready(f2h_axi_s0_rready),
 );
 
 assign LED[0] = blink;
+assign LED[3:1] = status;
 
 endmodule
