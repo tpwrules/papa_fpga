@@ -19,7 +19,7 @@
 
     # use the de0 nano DTB since there is no de10 nano in mainline kernel
     # and it seems to work okay
-    FDTDIR=$(echo ./files/boot/nixos/*-dtbs)
+    FDTDIR=$(echo ./files/boot/nixos/*-d*s) # match "dtbs" and "device-tree-overlays"
     chmod -R u+w $FDTDIR
     mv $FDTDIR/socfpga_cyclone5_de0_nano_soc.dtb $FDTDIR/socfpga_cyclone5_de10_nano.dtb
   '';
@@ -83,6 +83,14 @@
         STRICT_DEVMEM n
         IO_STRICT_DEVMEM n
       '';
+    }
+  ];
+
+  hardware.deviceTree.overlays = [
+    # reserve 16MiB at the end of SDRAM (0x3F000000-0x40000000)
+    {
+      name = "memory-reserve";
+      dtsFile = ./memory-reserve.dts;
     }
   ];
 
