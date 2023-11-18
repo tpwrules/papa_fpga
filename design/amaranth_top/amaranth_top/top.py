@@ -31,8 +31,8 @@ class Top(wiring.Component):
             with m.State("IDLE"):
                 with m.If(~button): # button pressed
                     m.d.sync += [
-                        # write address (last address of SDRAM through ACP)
-                        self.audio_ram.addr.eq(0xBFFFFFFC),
+                        # write address (first address of audio area thru ACP)
+                        self.audio_ram.addr.eq(0xBF00_0000),
                         # one word please
                         self.audio_ram.length.eq(0),
                         # signals are valid
