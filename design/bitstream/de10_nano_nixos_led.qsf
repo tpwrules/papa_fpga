@@ -467,7 +467,7 @@ set_location_assignment PIN_AE17 -to GPIO_1[35]
 #============================================================
 
 
-set_global_assignment -name SDC_FILE de10_nano_nixos_led.SDC
+set_global_assignment -name SDC_FILE de10_nano_nixos_led.sdc
 set_global_assignment -name VERILOG_FILE ip/intr_capturer/intr_capturer.v
 set_global_assignment -name VERILOG_FILE ip/edge_detect/altera_edge_detector.v
 set_global_assignment -name VERILOG_FILE ip/debounce/debounce.v
