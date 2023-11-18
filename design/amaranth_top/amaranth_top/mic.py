@@ -4,6 +4,9 @@ from amaranth.lib.wiring import In, Out
 from amaranth.lib.cdc import FFSynchronizer
 from amaranth.sim.core import Simulator, Delay, Settle
 
+MIC_DATA_BITS = 24 # each word is a signed 24 bit number
+MIC_FRAME_BITS = 64 # 64 data bits per data frame from the microphone
+
 class MicClockGenerator(wiring.Component):
     # generate the microphone clock suitable for wiring to the microphone's
     # input pins. the generated clock is half the module clock.
@@ -18,7 +21,7 @@ class MicClockGenerator(wiring.Component):
         m = Module()
 
         # cycle counter within the frame
-        cycle = Signal(range(64))
+        cycle = Signal(range(MIC_FRAME_BITS))
 
         # toggle clock
         m.d.sync += self.mic_sck.eq(~self.mic_sck)
@@ -27,10 +30,10 @@ class MicClockGenerator(wiring.Component):
             m.d.sync += cycle.eq(cycle + 1)
 
         # lower word select on falling edge before cycle start
-        with m.If((cycle == 63) & self.mic_sck):
+        with m.If((cycle == MIC_FRAME_BITS-1) & self.mic_sck):
             m.d.sync += self.mic_ws.eq(0)
         # raise word select on falling edge before second half of cycle
-        with m.If((cycle == 31) & self.mic_sck):
+        with m.If((cycle == (MIC_FRAME_BITS//2)-1) & self.mic_sck):
             m.d.sync += self.mic_ws.eq(1)
 
         mic_data_sof = Signal()
@@ -46,8 +49,8 @@ class MicDataReceiver(wiring.Component):
     mic_data: In(1)
     mic_data_sof_sync: In(1)
 
-    sample_l: Out(24)
-    sample_r: Out(24)
+    sample_l: Out(signed(MIC_DATA_BITS))
+    sample_r: Out(signed(MIC_DATA_BITS))
     sample_new: Out(1) # pulsed when new sample data is available
 
     def elaborate(self, platform):
@@ -57,7 +60,7 @@ class MicDataReceiver(wiring.Component):
         mic_data_sync = Signal()
         m.submodules += FFSynchronizer(self.mic_data, mic_data_sync)
 
-        buffer = Signal(64)
+        buffer = Signal(MIC_FRAME_BITS)
         # shift in new data on rising edge of clock into the MSB of buffer
         with m.If(self.mic_sck):
             m.d.sync += buffer.eq(Cat(buffer[1:], mic_data_sync))
@@ -66,8 +69,8 @@ class MicDataReceiver(wiring.Component):
         # once the frame is over, save the data in the outputs
         with m.If(self.mic_data_sof_sync):
             m.d.sync += [
-                self.sample_l.eq(buffer[1:25][::-1]),
-                self.sample_r.eq(buffer[33:57][::-1]),
+                self.sample_l.eq(buffer[1:1+MIC_DATA_BITS][::-1]),
+                self.sample_r.eq(buffer[33:33+MIC_DATA_BITS][::-1]),
                 self.sample_new.eq(1),
             ]
 
@@ -96,9 +99,9 @@ class FakeMic(wiring.Component):
     def elaborate(self, platform):
         m = Module()
 
-        counter = Signal(24, reset=self._start)
-        sample = Signal(24)
-        buffer = Signal(24)
+        counter = Signal(MIC_DATA_BITS, reset=self._start)
+        sample = Signal(MIC_DATA_BITS)
+        buffer = Signal(MIC_DATA_BITS)
 
         # on rising edge of word select, sample the "sound"
         with m.If(self._rose(m, self.mic_ws)):
@@ -143,8 +146,8 @@ class FakeMic(wiring.Component):
 class MicDemo(wiring.Component):
     mic_sck: Out(1)
 
-    sample_l: Out(24)
-    sample_r: Out(24)
+    sample_l: Out(signed(MIC_DATA_BITS))
+    sample_r: Out(signed(MIC_DATA_BITS))
     sample_new: Out(1)
 
     def elaborate(self, platform):
@@ -184,7 +187,7 @@ class MicDemo(wiring.Component):
 def demo():
     top = MicDemo()
     sim = Simulator(top)
-    sim.add_clock(1/(2*48000*64), domain="sync")
+    sim.add_clock(1/(2*48000*MIC_FRAME_BITS), domain="sync")
 
     mod_traces = []
     for name in top.signature.members.keys():
