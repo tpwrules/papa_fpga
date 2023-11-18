@@ -2,8 +2,46 @@ from amaranth import *
 from amaranth.lib import wiring, data
 from amaranth.lib.wiring import In, Out, Member, Interface, connect, flipped
 from amaranth.lib.cdc import ResetSynchronizer, FFSynchronizer
+from amaranth.lib.fifo import AsyncFIFO
 
 from .bus import AudioRAMBus
+from .constants import MIC_FREQ_HZ
+from .cyclone_v_pll import IntelPLL
+from .mic import MIC_FRAME_BITS, MIC_DATA_BITS, MicClockGenerator, \
+    MicDataReceiver
+
+class MicCapture(wiring.Component):
+    mic_sck: Out(1) # microphone data bus
+    mic_ws: Out(1)
+    mic_data: In(1)
+
+    sample_l: Out(signed(MIC_DATA_BITS))
+    sample_r: Out(signed(MIC_DATA_BITS))
+    sample_new: Out(1)
+
+    def elaborate(self, platform):
+        m = Module()
+
+        # generate and propagate microphone clocks
+        m.submodules.clk_gen = clk_gen = MicClockGenerator()
+        m.d.comb += [
+            self.mic_sck.eq(clk_gen.mic_sck),
+            self.mic_ws.eq(clk_gen.mic_ws),
+        ]
+
+        # wire up the microphone receiver
+        m.submodules.mic = mic = MicDataReceiver()
+        m.d.comb += [
+            mic.mic_sck.eq(clk_gen.mic_sck),
+            mic.mic_data_sof_sync.eq(clk_gen.mic_data_sof_sync),
+            mic.mic_data.eq(self.mic_data),
+
+            self.sample_l.eq(mic.sample_l),
+            self.sample_r.eq(mic.sample_r),
+            self.sample_new.eq(mic.sample_new),
+        ]
+
+        return m
 
 class Top(wiring.Component):
     blink:      Out(1)
@@ -11,6 +49,10 @@ class Top(wiring.Component):
     button:     In(1)
 
     audio_ram: Out(AudioRAMBus())
+
+    mic_sck: Out(1) # microphone data bus
+    mic_ws: Out(1)
+    mic_data: In(1)
 
     def elaborate(self, platform):
         m = Module()
@@ -26,18 +68,39 @@ class Top(wiring.Component):
         with m.Else():
             m.d.sync += counter.eq(counter + 1)
 
-        # write a word when the button is pressed
+        # instantiate mic capture unit in its domain
+        m.submodules.mic_capture = mic_capture = \
+            DomainRenamer("mic_capture")(MicCapture())
+
+        # FIFO to cross domains from mic capture
+        m.submodules.mic_fifo = mic_fifo = AsyncFIFO(
+            width=32, depth=256,
+            r_domain="sync",
+            w_domain="mic_capture",
+        )
+        m.d.comb += [
+            mic_fifo.w_data.eq(
+                (mic_capture.sample_l[8:24]<<16) | mic_capture.sample_r[8:24]),
+            mic_fifo.w_en.eq(mic_capture.sample_new),
+        ]
+
+        # write a word from the data FIFO when available
+        ram_addr = Signal(24) # 16MiB audio area
         with m.FSM("IDLE"):
             with m.State("IDLE"):
-                with m.If(~button): # button pressed
+                with m.If(mic_fifo.r_rdy): # new word available
                     m.d.sync += [
-                        # write address (first address of audio area thru ACP)
-                        self.audio_ram.addr.eq(0xBF00_0000),
+                        # write address (audio area thru ACP)
+                        self.audio_ram.addr.eq(0xBF00_0000 | ram_addr),
                         # one word please
                         self.audio_ram.length.eq(0),
                         # signals are valid
                         self.audio_ram.addr_valid.eq(1),
+                        # bump write address
+                        ram_addr.eq(ram_addr + 4)
                     ]
+                    # read the data from the FIFO this cycle
+                    m.d.comb += mic_fifo.r_en.eq(1)
                     m.next = "AWAIT"
 
             with m.State("AWAIT"):
@@ -46,7 +109,7 @@ class Top(wiring.Component):
                         # deassert valid
                         self.audio_ram.addr_valid.eq(0),
                         # set up data
-                        self.audio_ram.data.eq(69),
+                        self.audio_ram.data.eq(mic_fifo.r_data),
                         self.audio_ram.data_valid.eq(1),
                         # toggle LED
                         self.status[0].eq(~self.status[0]),
@@ -67,10 +130,6 @@ class Top(wiring.Component):
                 with m.If(self.audio_ram.txn_done):
                     # toggle LED
                     m.d.sync += self.status[2].eq(~self.status[2])
-                    m.next = "BWAIT"
-
-            with m.State("BWAIT"):
-                with m.If(button): # button released
                     m.next = "IDLE"
 
         return m
@@ -82,6 +141,9 @@ class FPGATop(wiring.Component):
     blink:      Out(1)
     status:     Out(3)
     button:     In(1)
+
+    GPIO_0_OUT: Out(2)
+    GPIO_0_IN:  In(34)
 
     # copy-pasta from verilog
     f2h_axi_s0_awid: Out(7)
@@ -116,11 +178,23 @@ class FPGATop(wiring.Component):
     def elaborate(self, platform):
         m = Module()
 
-        # wire up main clock domain
+        # wire up main clock domain and PLL
         m.domains.sync = sync = ClockDomain()
         m.d.comb += sync.clk.eq(self.clk50)
+        m.submodules.pll = pll = IntelPLL("50 MHz")
 
-        m.submodules += ResetSynchronizer(self.rst)
+        # hold whole design in reset until PLL is locked
+        reset = Signal()
+        m.d.comb += reset.eq(self.rst & pll.o_locked)
+        m.submodules += ResetSynchronizer(reset)
+
+        # set up mic capture domain
+        # frequency is doubled from microphone data rate
+        mic_capture_freq = 2*MIC_FREQ_HZ*MIC_FRAME_BITS
+        m.domains.mic_capture = mic_capture = ClockDomain()
+        m.d.comb += mic_capture.clk.eq(
+            pll.add_output(f"{mic_capture_freq} Hz"))
+        m.submodules += ResetSynchronizer(reset, domain="mic_capture")
 
         # wire up top module
         m.submodules.top = top = Top()
@@ -136,6 +210,14 @@ class FPGATop(wiring.Component):
                 m.d.comb += getattr(self, name).eq(getattr(top, name))
             else:
                 raise ValueError("bad flow")
+
+        # wire up microphone data bus
+        m.d.comb += [
+            self.GPIO_0_OUT[1].eq(top.mic_sck),
+            self.GPIO_0_OUT[0].eq(top.mic_ws),
+
+            top.mic_data.eq(self.GPIO_0_IN[33]),
+        ]
 
         # hook up audio RAM bus to AXI port
         m.d.comb += [

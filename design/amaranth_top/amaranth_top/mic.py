@@ -4,6 +4,8 @@ from amaranth.lib.wiring import In, Out
 from amaranth.lib.cdc import FFSynchronizer
 from amaranth.sim.core import Simulator, Delay, Settle
 
+from .constants import MIC_FREQ_HZ
+
 MIC_DATA_BITS = 24 # each word is a signed 24 bit number
 MIC_FRAME_BITS = 64 # 64 data bits per data frame from the microphone
 
@@ -187,7 +189,7 @@ class MicDemo(wiring.Component):
 def demo():
     top = MicDemo()
     sim = Simulator(top)
-    sim.add_clock(1/(2*48000*MIC_FRAME_BITS), domain="sync")
+    sim.add_clock(1/(2*MIC_FREQ_HZ*MIC_FRAME_BITS), domain="sync")
 
     mod_traces = []
     for name in top.signature.members.keys():
