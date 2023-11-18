@@ -91,6 +91,9 @@ class Top(wiring.Component):
 
         # write a word from the data FIFO when available
         ram_addr = Signal(24) # 16MiB audio area
+        # the FIFO only seems to output the data for one clock time
+        data_latched = Signal()
+        latched_data = Signal(32)
         with m.FSM("IDLE"):
             with m.State("IDLE"):
                 with m.If(mic_fifo.r_rdy): # new word available
@@ -104,17 +107,25 @@ class Top(wiring.Component):
                         # bump write address
                         ram_addr.eq(ram_addr + 4)
                     ]
-                    # read the data from the FIFO this cycle
+                    # read the data from the FIFO this cycle to be available on
+                    # the next
                     m.d.comb += mic_fifo.r_en.eq(1)
+                    m.d.sync += data_latched.eq(0)
                     m.next = "AWAIT"
 
             with m.State("AWAIT"):
+                with m.If(data_latched == 0): # grab the word from the FIFO
+                    m.d.sync += [
+                        data_latched.eq(1),
+                        latched_data.eq(mic_fifo.r_data),
+                    ]
                 with m.If(self.audio_ram.addr_ready):
                     m.d.sync += [
                         # deassert valid
                         self.audio_ram.addr_valid.eq(0),
                         # set up data
-                        self.audio_ram.data.eq(mic_fifo.r_data),
+                        self.audio_ram.data.eq(
+                            Mux(data_latched, latched_data, mic_fifo.r_data)),
                         self.audio_ram.data_valid.eq(1),
                         # toggle LED
                         self.status[0].eq(~self.status[0]),
