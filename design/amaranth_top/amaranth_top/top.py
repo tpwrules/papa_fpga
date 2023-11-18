@@ -71,6 +71,11 @@ class Top(wiring.Component):
         # instantiate mic capture unit in its domain
         m.submodules.mic_capture = mic_capture = \
             DomainRenamer("mic_capture")(MicCapture())
+        m.d.comb += [
+            self.mic_sck.eq(mic_capture.mic_sck),
+            self.mic_ws.eq(mic_capture.mic_ws),
+            mic_capture.mic_data.eq(self.mic_data),
+        ]
 
         # FIFO to cross domains from mic capture
         m.submodules.mic_fifo = mic_fifo = AsyncFIFO(
