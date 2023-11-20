@@ -86,7 +86,7 @@ class FakeMic(wiring.Component):
 
     mic_data: Out(1)
 
-    def __init__(self, channel, start=0):
+    def __init__(self, channel, start=0, inc=1):
         super().__init__()
 
         if channel == "left":
@@ -97,6 +97,7 @@ class FakeMic(wiring.Component):
             raise ValueError("bad channel")
 
         self._start = start
+        self._inc = inc
 
     def elaborate(self, platform):
         m = Module()
@@ -109,7 +110,7 @@ class FakeMic(wiring.Component):
         with m.If(self._rose(m, self.mic_ws)):
             m.d.sync += [
                 sample.eq(counter),
-                counter.eq(counter+1),
+                counter.eq(counter+self._inc),
             ]
 
         # when the correct word select is asserted, move sample to buffer to

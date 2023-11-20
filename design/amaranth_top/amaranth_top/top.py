@@ -5,10 +5,10 @@ from amaranth.lib.cdc import ResetSynchronizer, FFSynchronizer
 from amaranth.lib.fifo import AsyncFIFO
 
 from .bus import AudioRAMBus
-from .constants import MIC_FREQ_HZ
+from .constants import MIC_FREQ_HZ, USE_FAKE_MICS
 from .cyclone_v_pll import IntelPLL
 from .mic import MIC_FRAME_BITS, MIC_DATA_BITS, MicClockGenerator, \
-    MicDataReceiver
+    MicDataReceiver, FakeMic
 
 class MicCapture(wiring.Component):
     mic_sck: Out(1) # microphone data bus
@@ -29,12 +29,30 @@ class MicCapture(wiring.Component):
             self.mic_ws.eq(clk_gen.mic_ws),
         ]
 
+        # hook up mic data as appropriate
+        mic_data = Signal()
+        if not USE_FAKE_MICS:
+            m.d.comb += mic_data.eq(self.mic_data)
+        else:
+            m.submodules.fake_mic_l = fake_mic_l = \
+                FakeMic("left", 0x80_0000, inc=0x201)
+            m.submodules.fake_mic_r = fake_mic_r = \
+                FakeMic("right", 0x80_0101, inc=0x201)
+            m.d.comb += [
+                fake_mic_l.mic_sck.eq(clk_gen.mic_sck),
+                fake_mic_l.mic_ws.eq(clk_gen.mic_ws),
+                fake_mic_r.mic_sck.eq(clk_gen.mic_sck),
+                fake_mic_r.mic_ws.eq(clk_gen.mic_ws),
+
+                mic_data.eq(fake_mic_l.mic_data | fake_mic_r.mic_data),
+            ]
+
         # wire up the microphone receiver
         m.submodules.mic = mic = MicDataReceiver()
         m.d.comb += [
             mic.mic_sck.eq(clk_gen.mic_sck),
             mic.mic_data_sof_sync.eq(clk_gen.mic_data_sof_sync),
-            mic.mic_data.eq(self.mic_data),
+            mic.mic_data.eq(mic_data),
 
             self.sample_l.eq(mic.sample_l),
             self.sample_r.eq(mic.sample_r),
