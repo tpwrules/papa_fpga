@@ -200,14 +200,15 @@ class FPGATop(wiring.Component):
     def elaborate(self, platform):
         m = Module()
 
-        # wire up main clock domain and PLL
+        # wire up main clock domain and PLL. note that all PLL outputs are
+        # marked as asynchronous w.r.t. its inputs and each other in the .sdc
         m.domains.sync = sync = ClockDomain()
         m.d.comb += sync.clk.eq(self.clk50)
-        m.submodules.pll = pll = IntelPLL("50 MHz")
+        m.submodules.main_pll = main_pll = IntelPLL("50 MHz")
 
         # hold whole design in reset until PLL is locked
         reset = Signal()
-        m.d.comb += reset.eq(self.rst & pll.o_locked)
+        m.d.comb += reset.eq(self.rst & main_pll.o_locked)
         m.submodules += ResetSynchronizer(reset)
 
         # set up mic capture domain
@@ -215,7 +216,7 @@ class FPGATop(wiring.Component):
         mic_capture_freq = 2*MIC_FREQ_HZ*MIC_FRAME_BITS
         m.domains.mic_capture = mic_capture = ClockDomain()
         m.d.comb += mic_capture.clk.eq(
-            pll.add_output(f"{mic_capture_freq} Hz"))
+            main_pll.add_output(f"{mic_capture_freq} Hz"))
         m.submodules += ResetSynchronizer(reset, domain="mic_capture")
 
         # wire up top module
