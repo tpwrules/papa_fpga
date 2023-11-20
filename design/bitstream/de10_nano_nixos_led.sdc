@@ -52,21 +52,20 @@ derive_clock_uncertainty
 # Set Clock Groups
 #**************************************************************
 
-set_clock_groups -asynchronous \
-    -group { FPGA_CLK1_50 } \
-    -group { FPGA_CLK2_50 } \
-    -group { FPGA_CLK3_50 } \
-    -group { amaranth_top|main_pll|*[0].*|divclk } \
-    -group { amaranth_top|main_pll|*[1].*|divclk } \
-    -group { amaranth_top|main_pll|*[2].*|divclk } \
-    -group { amaranth_top|main_pll|*[3].*|divclk } \
-    -group { amaranth_top|main_pll|*[4].*|divclk }
 
 
 #**************************************************************
 # Set False Path
 #**************************************************************
 
+# eliminate false paths to async clear inputs of synchronizers
+# (as created by Amaranth's ResetSynchronizer)
+foreach path [get_entity_instances altera_std_synchronizer] {
+    set path_pins [get_pins -nowarn $path|dreg[*]|clrn];
+    if {[get_collection_size $path_pins] > 0} {
+        set_false_path -to $path_pins;
+    }
+}
 
 
 #**************************************************************
