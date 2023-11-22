@@ -174,7 +174,7 @@ class Top(wiring.Component):
                         # signals are valid
                         self.audio_ram.addr_valid.eq(1),
                         # bump write address
-                        ram_addr.eq(ram_addr + 4)
+                        ram_addr.eq(ram_addr + 2)
                     ]
                     m.next = "AWAIT"
 
@@ -317,9 +317,8 @@ class FPGATop(wiring.Component):
         # hook up audio RAM bus to AXI port
         m.d.comb += [
             self.f2h_axi_s0_awid.eq(0), # always write with id 0
-            self.f2h_axi_s0_awaddr.eq(top.audio_ram.addr),
             self.f2h_axi_s0_awlen.eq(top.audio_ram.length),
-            self.f2h_axi_s0_awsize.eq(0b010), # four bytes at a time
+            self.f2h_axi_s0_awsize.eq(0b001), # two bytes at a time
             self.f2h_axi_s0_awburst.eq(0b01), # burst mode: increment
             # heard vague rumors that these should just all be 1 to activate
             # caching as expected...
@@ -330,14 +329,27 @@ class FPGATop(wiring.Component):
             self.f2h_axi_s0_awvalid.eq(top.audio_ram.addr_valid),
             top.audio_ram.addr_ready.eq(self.f2h_axi_s0_awready),
 
-            self.f2h_axi_s0_wdata.eq(top.audio_ram.data),
-            self.f2h_axi_s0_wstrb.eq(0b1111),
+            self.f2h_axi_s0_wdata.eq( # route 16 bit data to both 32 bit halves
+                Cat(top.audio_ram.data, top.audio_ram.data)),
             self.f2h_axi_s0_wvalid.eq(top.audio_ram.data_valid),
             top.audio_ram.data_ready.eq(self.f2h_axi_s0_wready),
 
             self.f2h_axi_s0_bready.eq(self.f2h_axi_s0_bvalid),
             top.audio_ram.txn_done.eq(self.f2h_axi_s0_bvalid),
         ]
+
+        # transform 16 bit audio bus into 32 bit AXI bus
+        # remove bottom two address bits to stay 32 bit aligned
+        m.d.comb += self.f2h_axi_s0_awaddr.eq(top.audio_ram.addr & 0xFFFFFFFC)
+        curr_half = Signal() # 16 bit half of the 32 bit word we're writing
+        with m.If(self.f2h_axi_s0_awvalid & self.f2h_axi_s0_awready):
+            # latch which half we are writing initially
+            m.d.sync += curr_half.eq(top.audio_ram.addr[1])
+        with m.If(self.f2h_axi_s0_wvalid & self.f2h_axi_s0_wready):
+            # swap halves after every write
+            m.d.sync += curr_half.eq(~curr_half)
+        # set strobes to enable low or high bytes according to current half
+        m.d.comb += self.f2h_axi_s0_wstrb.eq(Mux(curr_half, 0b1100, 0b0011))
 
         # plug off AXI port address write and read data ports
         m.d.comb += [
