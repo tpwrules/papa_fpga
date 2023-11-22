@@ -161,46 +161,51 @@ class Top(wiring.Component):
             mic_fifo.w_en.eq(mic_capture.sample_new),
         ]
 
-        # write a word from the data FIFO when available
+        # write words from the data FIFO when available
+        BURST_BEATS = 1
         ram_addr = Signal(24) # 16MiB audio area
+        burst_counter = Signal(range(max(1, BURST_BEATS-1)))
+        m.d.comb += self.audio_ram.data.eq(mic_fifo.r_data)
         with m.FSM("IDLE"):
             with m.State("IDLE"):
-                with m.If(mic_fifo.r_rdy): # new word available
+                with m.If(mic_fifo.r_level >= BURST_BEATS): # enough data
                     m.d.sync += [
                         # write address (audio area thru ACP)
                         self.audio_ram.addr.eq(0xBF00_0000 | ram_addr),
-                        # one word please
-                        self.audio_ram.length.eq(0),
-                        # signals are valid
+                        self.audio_ram.length.eq(BURST_BEATS-1),
+                        # address signals are valid
                         self.audio_ram.addr_valid.eq(1),
                         # bump write address
-                        ram_addr.eq(ram_addr + 2)
+                        ram_addr.eq(ram_addr + 2*BURST_BEATS)
                     ]
                     m.next = "AWAIT"
 
             with m.State("AWAIT"):
                 with m.If(self.audio_ram.addr_ready):
                     m.d.sync += [
-                        # deassert valid
+                        # deassert address valid
                         self.audio_ram.addr_valid.eq(0),
-                        # set up data
-                        self.audio_ram.data.eq(mic_fifo.r_data),
+                        # our data is always valid
                         self.audio_ram.data_valid.eq(1),
+                        # init burst
+                        burst_counter.eq(BURST_BEATS-1),
                         # toggle LED
                         self.status[0].eq(~self.status[0]),
                     ]
-                    m.d.comb += mic_fifo.r_en.eq(1) # acknowledge FIFO data
-                    m.next = "DWAIT"
+                    m.next = "BURST"
 
-            with m.State("DWAIT"):
+            with m.State("BURST"):
                 with m.If(self.audio_ram.data_ready):
-                    m.d.sync += [
-                        # deassert valid
-                        self.audio_ram.data_valid.eq(0),
-                        # toggle LED
-                        self.status[1].eq(~self.status[1]),
-                    ]
-                    m.next = "TWAIT"
+                    m.d.comb += mic_fifo.r_en.eq(1) # acknowledge FIFO data
+                    m.d.sync += burst_counter.eq(burst_counter-1)
+                    with m.If(burst_counter == 0):
+                        m.d.sync += [
+                            # deassert valid
+                            self.audio_ram.data_valid.eq(0),
+                            # toggle LED
+                            self.status[1].eq(~self.status[1]),
+                        ]
+                        m.next = "TWAIT"
 
             with m.State("TWAIT"):
                 with m.If(self.audio_ram.txn_done):
