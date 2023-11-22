@@ -21,12 +21,12 @@
    {
       datum _lockedAddress
       {
-         value = "1";
+         value = "0";
          type = "boolean";
       }
       datum baseAddress
       {
-         value = "196608";
+         value = "65536";
          type = "String";
       }
    }
@@ -47,7 +47,7 @@
    {
       datum _lockedAddress
       {
-         value = "1";
+         value = "0";
          type = "boolean";
       }
       datum baseAddress
@@ -94,7 +94,7 @@
    {
       datum _lockedAddress
       {
-         value = "1";
+         value = "0";
          type = "boolean";
       }
       datum baseAddress
@@ -183,7 +183,7 @@
    {
       datum _lockedAddress
       {
-         value = "1";
+         value = "0";
          type = "boolean";
       }
       datum baseAddress
@@ -209,7 +209,7 @@
    {
       datum _lockedAddress
       {
-         value = "1";
+         value = "0";
          type = "boolean";
       }
       datum baseAddress
@@ -227,6 +227,22 @@
       }
    }
    element mm_bridge_0.s0
+   {
+      datum _lockedAddress
+      {
+         value = "1";
+         type = "boolean";
+      }
+   }
+   element mm_bridge_fpga
+   {
+      datum _sortIndex
+      {
+         value = "13";
+         type = "int";
+      }
+   }
+   element mm_bridge_fpga.s0
    {
       datum _lockedAddress
       {
@@ -326,6 +342,11 @@
    type="conduit"
    dir="end" />
  <interface name="memory" internal="hps_0.memory" type="conduit" dir="end" />
+ <interface
+   name="mm_bridge_fpga_m0"
+   internal="mm_bridge_fpga.m0"
+   type="avalon"
+   dir="start" />
  <interface name="reset" internal="clk_0.clk_in_reset" type="reset" dir="end" />
  <module
    name="ILC"
@@ -1046,6 +1067,24 @@
    version="20.1"
    enabled="1">
   <parameter name="ADDRESS_UNITS" value="SYMBOLS" />
+  <parameter name="ADDRESS_WIDTH" value="17" />
+  <parameter name="DATA_WIDTH" value="32" />
+  <parameter name="LINEWRAPBURSTS" value="0" />
+  <parameter name="MAX_BURST_SIZE" value="1" />
+  <parameter name="MAX_PENDING_RESPONSES" value="4" />
+  <parameter name="PIPELINE_COMMAND" value="1" />
+  <parameter name="PIPELINE_RESPONSE" value="1" />
+  <parameter name="SYMBOL_WIDTH" value="8" />
+  <parameter name="SYSINFO_ADDR_WIDTH" value="17" />
+  <parameter name="USE_AUTO_ADDRESS_WIDTH" value="0" />
+  <parameter name="USE_RESPONSE" value="0" />
+ </module>
+ <module
+   name="mm_bridge_fpga"
+   kind="altera_avalon_mm_bridge"
+   version="20.1"
+   enabled="1">
+  <parameter name="ADDRESS_UNITS" value="SYMBOLS" />
   <parameter name="ADDRESS_WIDTH" value="10" />
   <parameter name="DATA_WIDTH" value="32" />
   <parameter name="LINEWRAPBURSTS" value="0" />
@@ -1054,7 +1093,7 @@
   <parameter name="PIPELINE_COMMAND" value="1" />
   <parameter name="PIPELINE_RESPONSE" value="1" />
   <parameter name="SYMBOL_WIDTH" value="8" />
-  <parameter name="SYSINFO_ADDR_WIDTH" value="18" />
+  <parameter name="SYSINFO_ADDR_WIDTH" value="10" />
   <parameter name="USE_AUTO_ADDRESS_WIDTH" value="1" />
   <parameter name="USE_RESPONSE" value="0" />
  </module>
@@ -1070,6 +1109,15 @@
    version="20.1"
    start="hps_0.h2f_lw_axi_master"
    end="mm_bridge_0.s0">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x00020000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="20.1"
+   start="hps_0.h2f_lw_axi_master"
+   end="mm_bridge_fpga.s0">
   <parameter name="arbitrationPriority" value="1" />
   <parameter name="baseAddress" value="0x0000" />
   <parameter name="defaultConnection" value="false" />
@@ -1089,7 +1137,7 @@
    start="mm_bridge_0.m0"
    end="ILC.avalon_slave">
   <parameter name="arbitrationPriority" value="1" />
-  <parameter name="baseAddress" value="0x00030000" />
+  <parameter name="baseAddress" value="0x00010000" />
   <parameter name="defaultConnection" value="false" />
  </connection>
  <connection
@@ -1148,7 +1196,7 @@
    start="fpga_only_master.master"
    end="ILC.avalon_slave">
   <parameter name="arbitrationPriority" value="1" />
-  <parameter name="baseAddress" value="0x00030000" />
+  <parameter name="baseAddress" value="0x00010000" />
   <parameter name="defaultConnection" value="false" />
  </connection>
  <connection
@@ -1228,6 +1276,11 @@
  <connection kind="clock" version="20.1" start="clk_0.clk" end="mm_bridge_0.clk" />
  <connection kind="clock" version="20.1" start="clk_0.clk" end="ILC.clk" />
  <connection kind="clock" version="20.1" start="clk_0.clk" end="f2h_axi.clk" />
+ <connection
+   kind="clock"
+   version="20.1"
+   start="clk_0.clk"
+   end="mm_bridge_fpga.clk" />
  <connection
    kind="clock"
    version="20.1"
@@ -1328,6 +1381,11 @@
    version="20.1"
    start="clk_0.clk_reset"
    end="mm_bridge_0.reset" />
+ <connection
+   kind="reset"
+   version="20.1"
+   start="clk_0.clk_reset"
+   end="mm_bridge_fpga.reset" />
  <connection kind="reset" version="20.1" start="clk_0.clk_reset" end="ILC.reset_n" />
  <interconnectRequirement for="$system" name="qsys_mm.clockCrossingAdapter" value="HANDSHAKE" />
  <interconnectRequirement for="$system" name="qsys_mm.maxAdditionalLatency" value="1" />

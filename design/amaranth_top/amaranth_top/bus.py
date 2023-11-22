@@ -19,3 +19,17 @@ class AudioRAMBus(Signature):
 
             "txn_done": In(1),
         })
+
+# rather thin wrapper around Avalon-MM which pretends we're writable and
+# readable in a single cycle like BRAM
+class RegisterBus(Signature):
+    def __init__(self):
+        super().__init__({
+            "addr": Out(10), # 4KiB for now
+
+            "w_en": Out(1),
+            "w_data": Out(32),
+
+            "r_en": Out(1),
+            "r_data": In(32),
+        })

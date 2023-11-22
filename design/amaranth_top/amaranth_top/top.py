@@ -4,7 +4,7 @@ from amaranth.lib.wiring import In, Out, Member, Interface, connect, flipped
 from amaranth.lib.cdc import ResetSynchronizer, FFSynchronizer
 from amaranth.lib.fifo import AsyncFIFO
 
-from .bus import AudioRAMBus
+from .bus import AudioRAMBus, RegisterBus
 from .constants import MIC_FREQ_HZ, USE_FAKE_MICS, NUM_MICS
 from .cyclone_v_pll import IntelPLL
 from .mic import MIC_FRAME_BITS, MIC_DATA_BITS, MicClockGenerator, \
@@ -119,6 +119,7 @@ class Top(wiring.Component):
     button:     In(1)
 
     audio_ram: Out(AudioRAMBus())
+    register_bus: In(RegisterBus().flip()) # is the flip correct?
 
     mic_sck: Out(1) # microphone data bus
     mic_ws: Out(1)
@@ -207,6 +208,13 @@ class Top(wiring.Component):
                     m.d.sync += self.status[2].eq(~self.status[2])
                     m.next = "IDLE"
 
+        # register demo
+        register_data = Signal(32)
+        with m.If((self.register_bus.addr == 0) & (self.register_bus.r_en)):
+            m.d.sync += self.register_bus.r_data.eq(register_data)
+        with m.If((self.register_bus.addr == 0) & (self.register_bus.w_en)):
+            m.d.sync += register_data.eq(self.register_bus.w_data)
+
         return m
 
 class FPGATop(wiring.Component):
@@ -249,6 +257,17 @@ class FPGATop(wiring.Component):
     f2h_axi_s0_rlast: In(1)
     f2h_axi_s0_rvalid: In(1)
     f2h_axi_s0_rready: Out(1)
+
+    mm_bridge_fpga_m0_waitrequest: Out(1)
+    mm_bridge_fpga_m0_readdata: Out(32)
+    mm_bridge_fpga_m0_readdatavalid: Out(1)
+    mm_bridge_fpga_m0_burstcount: In(1)
+    mm_bridge_fpga_m0_writedata: In(32)
+    mm_bridge_fpga_m0_address: In(10)
+    mm_bridge_fpga_m0_write: In(1)
+    mm_bridge_fpga_m0_read: In(1)
+    mm_bridge_fpga_m0_byteenable: In(4)
+    mm_bridge_fpga_m0_debugaccess: In(1)
 
     def elaborate(self, platform):
         m = Module()
@@ -320,11 +339,25 @@ class FPGATop(wiring.Component):
             top.audio_ram.txn_done.eq(self.f2h_axi_s0_bvalid),
         ]
 
-        # plug off address write and read data ports
+        # plug off AXI port address write and read data ports
         m.d.comb += [
             self.f2h_axi_s0_arvalid.eq(0),
             self.f2h_axi_s0_rready.eq(self.f2h_axi_s0_rvalid),
         ]
+
+        # hook up register bus to Avalon-MM port
+        m.d.comb += [
+            top.register_bus.addr.eq(self.mm_bridge_fpga_m0_address),
+            top.register_bus.w_en.eq(self.mm_bridge_fpga_m0_write),
+            top.register_bus.w_data.eq(self.mm_bridge_fpga_m0_writedata),
+            top.register_bus.r_en.eq(self.mm_bridge_fpga_m0_read),
+            self.mm_bridge_fpga_m0_readdata.eq(top.register_bus.r_data),
+        ]
+        # we never need to wait
+        m.d.comb += self.mm_bridge_fpga_m0_waitrequest.eq(0)
+        # data is always valid the cycle after the request
+        m.d.sync += self.mm_bridge_fpga_m0_readdatavalid.eq(
+            self.mm_bridge_fpga_m0_read)
 
         return m
 
