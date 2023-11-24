@@ -444,11 +444,11 @@
   <parameter name="USE_S0_AWQOS" value="0" />
   <parameter name="USE_S0_AWREGION" value="0" />
   <parameter name="USE_S0_AWUSER" value="1" />
-  <parameter name="USE_S0_BRESP" value="0" />
+  <parameter name="USE_S0_BRESP" value="1" />
   <parameter name="USE_S0_BUSER" value="0" />
   <parameter name="USE_S0_RRESP" value="0" />
   <parameter name="USE_S0_RUSER" value="0" />
-  <parameter name="USE_S0_WLAST" value="0" />
+  <parameter name="USE_S0_WLAST" value="1" />
   <parameter name="USE_S0_WUSER" value="0" />
   <parameter name="WRITE_ACCEPTANCE_CAPABILITY" value="16" />
   <parameter name="WRITE_ADDR_USER_WIDTH" value="64" />

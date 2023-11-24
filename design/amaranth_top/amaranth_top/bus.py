@@ -15,6 +15,7 @@ class AudioRAMBus(Signature):
 
             "data": Out(16),
             "data_valid": Out(1),
+            "data_last": Out(1),
             "data_ready": In(1),
 
             "txn_done": In(1),

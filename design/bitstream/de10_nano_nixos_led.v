@@ -130,9 +130,11 @@ wire        f2h_axi_s0_awvalid                    ;//                           
 wire        f2h_axi_s0_awready                    ;//                               .awready
 wire [31:0] f2h_axi_s0_wdata                      ;//                               .wdata
 wire [3:0]  f2h_axi_s0_wstrb                      ;//                               .wstrb
+wire        f2h_axi_s0_wlast                      ;//                               .wlast
 wire        f2h_axi_s0_wvalid                     ;//                               .wvalid
 wire        f2h_axi_s0_wready                     ;//                               .wready
 wire [6:0]  f2h_axi_s0_bid                        ;//                               .bid
+wire [1:0]  f2h_axi_s0_bresp                      ;//                               .bresp
 wire        f2h_axi_s0_bvalid                     ;//                               .bvalid
 wire        f2h_axi_s0_bready                     ;//                               .bready
 wire [6:0]  f2h_axi_s0_arid                       ;//                               .arid
@@ -261,9 +263,11 @@ soc_system u0(
                .f2h_axi_s0_awready(f2h_axi_s0_awready),
                .f2h_axi_s0_wdata(f2h_axi_s0_wdata),
                .f2h_axi_s0_wstrb(f2h_axi_s0_wstrb),
+               .f2h_axi_s0_wlast(f2h_axi_s0_wlast),
                .f2h_axi_s0_wvalid(f2h_axi_s0_wvalid),
                .f2h_axi_s0_wready(f2h_axi_s0_wready),
                .f2h_axi_s0_bid(f2h_axi_s0_bid),
+               .f2h_axi_s0_bresp(f2h_axi_s0_bresp),
                .f2h_axi_s0_bvalid(f2h_axi_s0_bvalid),
                .f2h_axi_s0_bready(f2h_axi_s0_bready),
                .f2h_axi_s0_arid(f2h_axi_s0_arid),
@@ -361,9 +365,11 @@ amaranth_top amaranth_top(
     .f2h_axi_s0_awready(f2h_axi_s0_awready),
     .f2h_axi_s0_wdata(f2h_axi_s0_wdata),
     .f2h_axi_s0_wstrb(f2h_axi_s0_wstrb),
+    .f2h_axi_s0_wlast(f2h_axi_s0_wlast),
     .f2h_axi_s0_wvalid(f2h_axi_s0_wvalid),
     .f2h_axi_s0_wready(f2h_axi_s0_wready),
     .f2h_axi_s0_bid(f2h_axi_s0_bid),
+    .f2h_axi_s0_bresp(f2h_axi_s0_bresp),
     .f2h_axi_s0_bvalid(f2h_axi_s0_bvalid),
     .f2h_axi_s0_bready(f2h_axi_s0_bready),
     .f2h_axi_s0_arid(f2h_axi_s0_arid),

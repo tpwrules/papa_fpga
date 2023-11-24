@@ -162,7 +162,7 @@ class Top(wiring.Component):
         ]
 
         # write words from the data FIFO when available
-        BURST_BEATS = 1
+        BURST_BEATS = 16
         ram_addr = Signal(24) # 16MiB audio area
         burst_counter = Signal(range(max(1, BURST_BEATS-1)))
         m.d.comb += self.audio_ram.data.eq(mic_fifo.r_data)
@@ -195,6 +195,9 @@ class Top(wiring.Component):
                     m.next = "BURST"
 
             with m.State("BURST"):
+                with m.If(burst_counter == 0):
+                    m.d.comb += self.audio_ram.data_last.eq(1)
+
                 with m.If(self.audio_ram.data_ready):
                     m.d.comb += mic_fifo.r_en.eq(1) # acknowledge FIFO data
                     m.d.sync += burst_counter.eq(burst_counter-1)
@@ -245,9 +248,11 @@ class FPGATop(wiring.Component):
     f2h_axi_s0_awready: In(1)
     f2h_axi_s0_wdata: Out(32)
     f2h_axi_s0_wstrb: Out(4)
+    f2h_axi_s0_wlast: Out(1)
     f2h_axi_s0_wvalid: Out(1)
     f2h_axi_s0_wready: In(1)
     f2h_axi_s0_bid: In(7)
+    f2h_axi_s0_bresp: In(2)
     f2h_axi_s0_bvalid: In(1)
     f2h_axi_s0_bready: Out(1)
     f2h_axi_s0_arid: Out(7)
@@ -337,6 +342,7 @@ class FPGATop(wiring.Component):
             self.f2h_axi_s0_wdata.eq( # route 16 bit data to both 32 bit halves
                 Cat(top.audio_ram.data, top.audio_ram.data)),
             self.f2h_axi_s0_wvalid.eq(top.audio_ram.data_valid),
+            self.f2h_axi_s0_wlast.eq(top.audio_ram.data_last),
             top.audio_ram.data_ready.eq(self.f2h_axi_s0_wready),
 
             self.f2h_axi_s0_bready.eq(self.f2h_axi_s0_bvalid),
