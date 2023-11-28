@@ -35,7 +35,20 @@ def run_sim():
         yield top.mic_data.eq(1)
         yield
 
+    # request a buffer switch
+    def switch_proc():
+        for _ in range(3300):
+            yield
+
+        yield top.register_bus.addr.eq(2)
+        yield top.register_bus.w_data.eq(1)
+        yield top.register_bus.w_en.eq(1)
+        yield
+        yield top.register_bus.w_en.eq(0)
+        yield
+
     sim.add_sync_process(mic_proc, domain="sync")
+    sim.add_sync_process(switch_proc, domain="sync")
 
     mod_traces = []
     for name in top.signature.members.keys():

@@ -3,7 +3,7 @@ from amaranth.lib import wiring, data
 from amaranth.lib.wiring import In, Out, Member, Signature
 from amaranth.lib.fifo import AsyncFIFO
 
-from .bus import AudioRAMBus
+from .bus import AudioRAMBus, RegisterBus
 from .constants import CAP_DATA_BITS, NUM_MICS
 
 # sample data in the system
@@ -54,17 +54,71 @@ class SampleWriter(wiring.Component):
     samples_count: In(32)
 
     audio_ram: Out(AudioRAMBus())
+    register_bus: In(RegisterBus())
 
     status: Out(3)
 
     def elaborate(self, platform):
         m = Module()
 
+        curr_buf = Signal(1)
+        last_addr = Signal(32)
+        test_reg = Signal(32)
+
+        # the host wants to swap buffers
+        swap_desired = Signal(1)
+        # we are swapping (swap is desired and the current FIFO word is the
+        # start of a new set, so no more addr increments or FIFO acks)
+        swapping = Signal(1)
+        # the swap has been processed and we can cancel the desire
+        # (used to prevent a race condition with the host desiring another one)
+        swap_finished = Signal(1)
+        with m.If(swap_finished):
+            m.d.sync += swap_desired.eq(0)
+
+        # address 0 is read/write for testing
+        # address 1 is number of microphones, read only
+        # address 2 is read/write for swap desired on bit 0
+        #     (hardware sets to 0 when swap occurs)
+        # address 3 is last address before the last swap
+        with m.If(self.register_bus.r_en):
+            m.d.sync += self.register_bus.r_data.eq(0) # clear out unused bits
+            with m.Switch(self.register_bus.addr & 0x3):
+                with m.Case(0):
+                    m.d.sync += self.register_bus.r_data.eq(test_reg)
+
+                with m.Case(1):
+                    m.d.sync += self.register_bus.r_data.eq(NUM_MICS)
+
+                with m.Case(2):
+                    m.d.sync += self.register_bus.r_data.eq(swap_desired)
+
+                with m.Case(3):
+                    m.d.sync += self.register_bus.r_data.eq(last_addr)
+
+        with m.If(self.register_bus.w_en):
+            with m.Switch(self.register_bus.addr & 0x3):
+                with m.Case(0):
+                    m.d.sync += test_reg.eq(self.register_bus.w_data)
+
+                with m.Case(1):
+                    pass # read only
+
+                with m.Case(2):
+                    with m.If(self.register_bus.w_data[0]):
+                        m.d.sync += swap_desired.eq(1)
+
+                with m.Case(3):
+                    pass # read only
+
         # write words from the stream when available
         BURST_BEATS = 16
         ram_addr = Signal(24) # 16MiB audio area
         burst_counter = Signal(range(max(1, BURST_BEATS-1)))
         m.d.comb += self.audio_ram.data.eq(self.samples.data)
+        # first flag is set and a swap is desired
+        m.d.comb += swapping.eq(
+            self.samples.valid & self.samples.first & swap_desired)
         with m.FSM("IDLE"):
             with m.State("IDLE"):
                 with m.If(self.samples_count >= BURST_BEATS): # enough data?
@@ -74,8 +128,6 @@ class SampleWriter(wiring.Component):
                         self.audio_ram.length.eq(BURST_BEATS-1),
                         # address signals are valid
                         self.audio_ram.addr_valid.eq(1),
-                        # bump write address
-                        ram_addr.eq(ram_addr + 2*BURST_BEATS)
                     ]
                     m.next = "AWAIT"
 
@@ -98,7 +150,10 @@ class SampleWriter(wiring.Component):
                     m.d.comb += self.audio_ram.data_last.eq(1)
 
                 with m.If(self.audio_ram.data_ready):
-                    m.d.comb += self.samples.ready.eq(1)
+                    with m.If(~swapping):
+                        m.d.comb += self.samples.ready.eq(1) # FIFO ack
+                        m.d.sync += ram_addr.eq(ram_addr + 2) # bump write addr
+
                     m.d.sync += burst_counter.eq(burst_counter-1)
                     with m.If(burst_counter == 0):
                         m.d.sync += [
@@ -113,6 +168,25 @@ class SampleWriter(wiring.Component):
                 with m.If(self.audio_ram.txn_done):
                     # toggle LED
                     m.d.sync += self.status[2].eq(~self.status[2])
+
+                    # it's time to finalize the swap? then do it
+                    with m.If(swapping):
+                        next_buf = Signal.like(curr_buf)
+                        m.d.comb += next_buf.eq(~curr_buf)
+
+                        m.d.sync += [
+                            curr_buf.eq(next_buf), # save next buffer
+                            last_addr.eq(ram_addr), # save address for host
+                        ]
+                        m.d.comb += swap_finished.eq(1) # ack swap
+
+                        # set up next RAM address
+                        with m.Switch(next_buf):
+                            with m.Case(0):
+                                m.d.sync += ram_addr.eq(0x00_0000)
+                            with m.Case(1):
+                                m.d.sync += ram_addr.eq(0x80_0000)
+
                     m.next = "IDLE"
 
         return m

@@ -16,7 +16,7 @@ class Top(wiring.Component):
     button:     In(1)
 
     audio_ram: Out(AudioRAMBus())
-    register_bus: In(RegisterBus().flip()) # is the flip correct?
+    register_bus: In(RegisterBus())
 
     mic_sck: Out(1) # microphone data bus
     mic_ws: Out(1)
@@ -54,18 +54,12 @@ class Top(wiring.Component):
         m.submodules.writer = writer = SampleWriter()
         connect(m, mic_fifo.samples_r, writer.samples)
         connect(m, writer.audio_ram, flipped(self.audio_ram))
+        connect(m, flipped(self.register_bus), writer.register_bus)
         m.d.comb += [
             writer.samples_count.eq(mic_fifo.samples_count),
 
             self.status.eq(writer.status),
         ]
-
-        # register demo
-        register_data = Signal(32)
-        with m.If((self.register_bus.addr == 0) & (self.register_bus.r_en)):
-            m.d.sync += self.register_bus.r_data.eq(register_data)
-        with m.If((self.register_bus.addr == 0) & (self.register_bus.w_en)):
-            m.d.sync += register_data.eq(self.register_bus.w_data)
 
         return m
 
