@@ -15,5 +15,9 @@ buildPythonApplication {
     numpy
   ];
 
-  pythonImportsCheck = [ "application" ];
+  pythonImportsCheck = [
+    "application"
+    "application.console"
+    "application.wavdump"
+  ];
 }

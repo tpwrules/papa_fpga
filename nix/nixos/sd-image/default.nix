@@ -101,6 +101,7 @@
       # looks in /lib/firmware
       echo -n "bitstream.dtbo" | sudo tee /sys/kernel/config/device-tree/overlays/bitstream/path
       sleep 3 # is there a way to do this synchronously?
+      sudo ${design.application}/bin/console
     '';
   in with pkgs; [
     dtc
