@@ -162,6 +162,13 @@
   # bootspec generation is currently broken under cross-compilation
   boot.bootspec.enable = false;
 
+  # enable flakes and experimental commands
+  # and make the root user always trusted
+  nix.extraOptions = ''
+    experimental-features = nix-command flakes
+    trusted-users = @wheel
+  '';
+
   # get rid of warning that stateVersion is unset
   system.stateVersion = lib.mkDefault lib.trivial.release;
 }
