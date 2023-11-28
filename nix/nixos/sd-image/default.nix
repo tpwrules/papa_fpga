@@ -95,18 +95,17 @@
   ];
 
   environment.systemPackages = let
-    demo = pkgs.writeShellScriptBin "demo" ''
+    configure = pkgs.writeShellScriptBin "configure" ''
       echo "Configuring FPGA..."
       sudo mkdir -p /sys/kernel/config/device-tree/overlays/bitstream
       # looks in /lib/firmware
       echo -n "bitstream.dtbo" | sudo tee /sys/kernel/config/device-tree/overlays/bitstream/path
       sleep 3 # is there a way to do this synchronously?
-      echo "Running application..."
-      sudo ${design.application}/bin/HPS_FPGA_LED
     '';
   in with pkgs; [
     dtc
-    demo
+    configure
+    design.application
 
     (python3.withPackages (p: [
       (p.callPackage ./../../packages/numpy-1.25.1 {})

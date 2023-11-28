@@ -10,10 +10,6 @@ final: prev: {
     amaranth_top = callPackage ./design/amaranth_top {};
     bitstream = callPackage ./design/bitstream {};
     linux_firmware = callPackage ./design/linux_firmware {};
-    application = final.pkgsCross.armv7l-hf-multiplatform.pkgsStatic.design.callPackage ./design/application {
-      # TODO: fix cross logic so this is unnecessary
-      inherit (final) quartus-prime-lite;
-      soc_system = final.design.soc_system;
-    };
+    application = final.pkgsCross.armv7l-hf-multiplatform.python3Packages.callPackage ./design/application { };
   });
 }
