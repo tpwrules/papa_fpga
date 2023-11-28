@@ -47,6 +47,25 @@ class HW:
         # wait for any existing buffer swap to have completed
         while self.r[2] & 1: pass
 
+    def swap_buffers(self):
+        # swap buffers and return (old buffer, old address)
+
+        # ask for buffers to be swapped
+        self.r[2] = 1
+        # loop until it occurs (at about 48KHz so no point sleeping)
+        while (status := self.r[2]) & 1: pass
+
+        which = (status >> 1) & 1 # which buffer did we swap from?
+        where = self.r[3] # what was the last address in that buffer?
+        return (which, where)
+
+    def get_data(self):
+        # swap buffers then return a reference to the buffered data
+        which_buf, buf_pos = self.swap_buffers()
+        buf_pos >>= 1 # convert from bytes to words
+
+        return self.d[which_buf, :buf_pos].reshape(-1, self.n)
+
     def close(self):
         if self._closed:
             raise ValueError
