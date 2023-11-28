@@ -9,7 +9,7 @@ from .constants import MIC_FREQ_HZ, CAP_DATA_BITS, USE_FAKE_MICS, NUM_MICS
 from .cyclone_v_pll import IntelPLL
 from .mic import MIC_FRAME_BITS, MIC_DATA_BITS, MicClockGenerator, \
     MicDataReceiver, FakeMic
-from .stream import SampleStream, SampleStreamFIFO
+from .stream import SampleStream, SampleStreamFIFO, SampleWriter
 
 class MicCapture(wiring.Component):
     mic_sck: Out(1) # microphone data bus
@@ -156,60 +156,16 @@ class Top(wiring.Component):
             SampleStreamFIFO(w_domain="mic_capture")
         connect(m, mic_capture.samples, mic_fifo.samples_w)
 
-        # write words from the data FIFO when available
-        BURST_BEATS = 16
-        ram_addr = Signal(24) # 16MiB audio area
-        burst_counter = Signal(range(max(1, BURST_BEATS-1)))
-        m.d.comb += self.audio_ram.data.eq(mic_fifo.samples_r.data)
-        with m.FSM("IDLE"):
-            with m.State("IDLE"):
-                with m.If(mic_fifo.samples_count >= BURST_BEATS): # enough data?
-                    m.d.sync += [
-                        # write address (audio area thru ACP)
-                        self.audio_ram.addr.eq(0xBF00_0000 | ram_addr),
-                        self.audio_ram.length.eq(BURST_BEATS-1),
-                        # address signals are valid
-                        self.audio_ram.addr_valid.eq(1),
-                        # bump write address
-                        ram_addr.eq(ram_addr + 2*BURST_BEATS)
-                    ]
-                    m.next = "AWAIT"
+        # writer to save sample data to memory
+        m.submodules.writer = writer = SampleWriter()
+        connect(m, mic_fifo.samples_r, writer.samples)
+        connect(m, writer.audio_ram, flipped(self.audio_ram))
+        m.d.comb += [
+            mic_fifo.sample_ack.eq(writer.sample_ack),
+            writer.samples_count.eq(mic_fifo.samples_count),
 
-            with m.State("AWAIT"):
-                with m.If(self.audio_ram.addr_ready):
-                    m.d.sync += [
-                        # deassert address valid
-                        self.audio_ram.addr_valid.eq(0),
-                        # our data is always valid
-                        self.audio_ram.data_valid.eq(1),
-                        # init burst
-                        burst_counter.eq(BURST_BEATS-1),
-                        # toggle LED
-                        self.status[0].eq(~self.status[0]),
-                    ]
-                    m.next = "BURST"
-
-            with m.State("BURST"):
-                with m.If(burst_counter == 0):
-                    m.d.comb += self.audio_ram.data_last.eq(1)
-
-                with m.If(self.audio_ram.data_ready):
-                    m.d.comb += mic_fifo.sample_ack.eq(1)
-                    m.d.sync += burst_counter.eq(burst_counter-1)
-                    with m.If(burst_counter == 0):
-                        m.d.sync += [
-                            # deassert valid
-                            self.audio_ram.data_valid.eq(0),
-                            # toggle LED
-                            self.status[1].eq(~self.status[1]),
-                        ]
-                        m.next = "TWAIT"
-
-            with m.State("TWAIT"):
-                with m.If(self.audio_ram.txn_done):
-                    # toggle LED
-                    m.d.sync += self.status[2].eq(~self.status[2])
-                    m.next = "IDLE"
+            self.status.eq(writer.status),
+        ]
 
         # register demo
         register_data = Signal(32)
