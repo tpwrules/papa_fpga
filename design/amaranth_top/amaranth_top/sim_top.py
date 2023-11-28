@@ -1,14 +1,30 @@
 from amaranth import *
-from amaranth.lib.wiring import Interface
+from amaranth.lib.wiring import Interface, connect
 from amaranth.sim.core import Simulator, Delay, Settle
 
 from .top import Top
 from .constants import MIC_FREQ_HZ
 from .mic import MIC_FRAME_BITS, MIC_DATA_BITS
+from .bus import FakeAudioRAMBusWriteReceiver
+
+class SimTop(Elaboratable):
+    def __init__(self):
+        self.top = Top()
+
+    def elaborate(self, platform):
+        m = Module()
+
+        m.submodules.top = top = self.top
+        m.submodules.fake_rx = fake_rx = FakeAudioRAMBusWriteReceiver()
+
+        connect(m, top.audio_ram, fake_rx.audio_ram)
+
+        return m
 
 def run_sim():
-    top = Top()
-    sim = Simulator(top)
+    sim_top = SimTop()
+    top = sim_top.top
+    sim = Simulator(sim_top)
     sim.add_clock(1/50e6, domain="sync")
     sim.add_clock(1/(2*MIC_FREQ_HZ*MIC_FRAME_BITS), domain="mic_capture")
 
