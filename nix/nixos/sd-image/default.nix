@@ -54,8 +54,8 @@
   users.users.nixos = {
     isNormalUser = true;
     extraGroups = [ "wheel" "networkmanager" "video" ];
-    # Allow the graphical user to login without password
-    initialHashedPassword = "";
+    # hash of empty password
+    initialHashedPassword = "$y$j9T$QPt6M9GAEOhYriE0C8wnK0$ygMYgHlcRbmpBTeMxgqGRR4KVoEDH56wivA5G9OdB54";
   };
 
   # Allow the user to log in as root without a password.
@@ -112,6 +112,11 @@
       (p.callPackage ./../../packages/numpy-1.25.1 {})
     ]))
   ];
+
+  services.openssh = {
+    enable = true;
+    settings.PermitRootLogin = "yes";
+  };
 
   # save space and compilation time. might revise?
   hardware.enableAllFirmware = lib.mkForce false;
