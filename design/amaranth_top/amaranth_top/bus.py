@@ -2,6 +2,8 @@ from amaranth import *
 from amaranth.lib import wiring, data
 from amaranth.lib.wiring import In, Out, Member, Signature
 
+from amaranth_soc import csr
+
 # rather thin wrapper around AXI
 class AudioRAMBus(Signature):
     def __init__(self):
