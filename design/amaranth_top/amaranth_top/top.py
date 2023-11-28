@@ -9,7 +9,7 @@ from .constants import MIC_FREQ_HZ, CAP_DATA_BITS, USE_FAKE_MICS, NUM_MICS
 from .cyclone_v_pll import IntelPLL
 from .mic import MIC_FRAME_BITS, MIC_DATA_BITS, MicClockGenerator, \
     MicDataReceiver, FakeMic
-from .stream import SampleStream
+from .stream import SampleStream, SampleStreamFIFO
 
 class MicCapture(wiring.Component):
     mic_sck: Out(1) # microphone data bus
@@ -151,27 +151,19 @@ class Top(wiring.Component):
             mic_capture.mic_data.eq(self.mic_data),
         ]
 
-        # first-word fallthrough FIFO to cross domains from mic capture,
-        # including first mic flag
-        m.submodules.mic_fifo = mic_fifo = AsyncFIFO(
-            width=17, depth=512,
-            r_domain="sync",
-            w_domain="mic_capture",
-        )
-        m.d.comb += [
-            mic_fifo.w_data.eq(
-                (Cat(mic_capture.samples.data, mic_capture.samples.first))),
-            mic_fifo.w_en.eq(mic_capture.samples.new),
-        ]
+        # FIFO to cross domains from mic capture
+        m.submodules.mic_fifo = mic_fifo = \
+            SampleStreamFIFO(w_domain="mic_capture")
+        connect(m, mic_capture.samples, mic_fifo.samples_w)
 
         # write words from the data FIFO when available
         BURST_BEATS = 16
         ram_addr = Signal(24) # 16MiB audio area
         burst_counter = Signal(range(max(1, BURST_BEATS-1)))
-        m.d.comb += self.audio_ram.data.eq(mic_fifo.r_data)
+        m.d.comb += self.audio_ram.data.eq(mic_fifo.samples_r.data)
         with m.FSM("IDLE"):
             with m.State("IDLE"):
-                with m.If(mic_fifo.r_level >= BURST_BEATS): # enough data
+                with m.If(mic_fifo.samples_count >= BURST_BEATS): # enough data?
                     m.d.sync += [
                         # write address (audio area thru ACP)
                         self.audio_ram.addr.eq(0xBF00_0000 | ram_addr),
@@ -202,7 +194,7 @@ class Top(wiring.Component):
                     m.d.comb += self.audio_ram.data_last.eq(1)
 
                 with m.If(self.audio_ram.data_ready):
-                    m.d.comb += mic_fifo.r_en.eq(1) # acknowledge FIFO data
+                    m.d.comb += mic_fifo.sample_ack.eq(1)
                     m.d.sync += burst_counter.eq(burst_counter-1)
                     with m.If(burst_counter == 0):
                         m.d.sync += [
