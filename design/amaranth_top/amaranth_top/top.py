@@ -9,15 +9,14 @@ from .constants import MIC_FREQ_HZ, CAP_DATA_BITS, USE_FAKE_MICS, NUM_MICS
 from .cyclone_v_pll import IntelPLL
 from .mic import MIC_FRAME_BITS, MIC_DATA_BITS, MicClockGenerator, \
     MicDataReceiver, FakeMic
+from .stream import SampleStream
 
 class MicCapture(wiring.Component):
     mic_sck: Out(1) # microphone data bus
     mic_ws: Out(1)
     mic_data: In(NUM_MICS//2)
 
-    sample_out: Out(signed(CAP_DATA_BITS))
-    sample_first: Out(1) # first sample of the microphone set
-    sample_new: Out(1) # new microphone data is available
+    samples: Out(SampleStream())
 
     def elaborate(self, platform):
         m = Module()
@@ -95,24 +94,24 @@ class MicCapture(wiring.Component):
                             mi, CAP_DATA_BITS).eq(sample_out[mi])
                     m.d.sync += [
                         mic_counter.eq(NUM_MICS-1), # reset output counter
-                        self.sample_first.eq(1), # prime first output flag
-                        self.sample_new.eq(1), # notify about new samples
+                        self.samples.first.eq(1), # prime first output flag
+                        self.samples.new.eq(1), # notify about new samples
                     ]
                     m.next = "OUTPUT"
 
             with m.State("OUTPUT"):
                 # remaining samples are not the first
-                m.d.sync += self.sample_first.eq(0)
+                m.d.sync += self.samples.first.eq(0)
 
                 # shift out microphone data
-                m.d.comb += self.sample_out.eq(sample_buf[:CAP_DATA_BITS])
+                m.d.comb += self.samples.data.eq(sample_buf[:CAP_DATA_BITS])
                 m.d.sync += [
                     sample_buf.eq(sample_buf >> CAP_DATA_BITS),
                     mic_counter.eq(mic_counter-1),
                 ]
 
                 with m.If(mic_counter == 0): # last mic
-                    m.d.sync += self.sample_new.eq(0)
+                    m.d.sync += self.samples.new.eq(0)
                     m.next = "IDLE"
 
         return m
@@ -161,8 +160,8 @@ class Top(wiring.Component):
         )
         m.d.comb += [
             mic_fifo.w_data.eq(
-                (Cat(mic_capture.sample_out, mic_capture.sample_first))),
-            mic_fifo.w_en.eq(mic_capture.sample_new),
+                (Cat(mic_capture.samples.data, mic_capture.samples.first))),
+            mic_fifo.w_en.eq(mic_capture.samples.new),
         ]
 
         # write words from the data FIFO when available
