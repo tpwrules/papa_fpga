@@ -4,7 +4,8 @@ from amaranth.lib.wiring import In, Out
 from amaranth.lib.cdc import FFSynchronizer
 from amaranth.sim.core import Simulator, Delay, Settle
 
-from .constants import MIC_FREQ_HZ
+from .constants import MIC_FREQ_HZ, NUM_MICS, USE_FAKE_MICS, CAP_DATA_BITS
+from .stream import SampleStream
 
 MIC_DATA_BITS = 24 # each word is a signed 24 bit number
 MIC_FRAME_BITS = 64 # 64 data bits per data frame from the microphone
@@ -145,6 +146,113 @@ class FakeMic(wiring.Component):
         m.d.sync += last.eq(s) # only applies when conditions match where called
 
         return last & ~s
+
+class MicCapture(wiring.Component):
+    mic_sck: Out(1) # microphone data bus
+    mic_ws: Out(1)
+    mic_data: In(NUM_MICS//2)
+
+    samples: Out(SampleStream())
+
+    def elaborate(self, platform):
+        m = Module()
+
+        # generate and propagate microphone clocks
+        m.submodules.clk_gen = clk_gen = MicClockGenerator()
+        m.d.comb += [
+            self.mic_sck.eq(clk_gen.mic_sck),
+            self.mic_ws.eq(clk_gen.mic_ws),
+        ]
+
+        # hook up mic data to fake or real microphones as appropriate
+        mic_data = Signal(NUM_MICS//2)
+        if not USE_FAKE_MICS:
+            m.d.comb += mic_data.eq(self.mic_data)
+        else:
+            data_out = []
+            # mic sequence parameters
+            base = 1 << (MIC_DATA_BITS-1) # ensure top bit is captured
+            step = 1 << (MIC_DATA_BITS-CAP_DATA_BITS) # ensure change is seen
+            for mi in range(0, NUM_MICS):
+                side = "left" if mi % 2 == 1 else "right"
+                # make sure each mic's data follows a unique sequence
+                fake_mic = FakeMic(side, base+(mi*step)+mi, inc=NUM_MICS*step+1)
+                m.submodules[f"fake_mic_{mi}"] = fake_mic
+
+                this_mic_data = Signal(1, name=f"mic_data_{mi}")
+                data_out.append(this_mic_data)
+
+                m.d.comb += [
+                    fake_mic.mic_sck.eq(clk_gen.mic_sck),
+                    fake_mic.mic_ws.eq(clk_gen.mic_ws),
+                    this_mic_data.eq(fake_mic.mic_data),
+                ]
+
+            for mi in range(0, NUM_MICS, 2): # wire up mic outputs
+                m.d.comb += mic_data[mi//2].eq(data_out[mi] | data_out[mi+1])
+
+        # wire up the microphone receivers
+        def cap(s): # transform from mic sample to captured sample
+            return s[MIC_DATA_BITS-CAP_DATA_BITS:]
+        sample_out = []
+        sample_new = Signal()
+        for mi in range(0, NUM_MICS, 2): # one receiver takes data from two mics
+            mic_rx = MicDataReceiver()
+            m.submodules[f"mic_rx_{mi}"] = mic_rx
+
+            sample_r = Signal(signed(CAP_DATA_BITS), name=f"mic_sample_{mi}")
+            sample_l = Signal(signed(CAP_DATA_BITS), name=f"mic_sample_{mi+1}")
+            sample_out.extend((sample_r, sample_l))
+
+            m.d.comb += [
+                mic_rx.mic_sck.eq(clk_gen.mic_sck), # data in
+                mic_rx.mic_data_sof_sync.eq(clk_gen.mic_data_sof_sync),
+                mic_rx.mic_data.eq(mic_data[mi//2]),
+
+                sample_l.eq(cap(mic_rx.sample_l)), # sample data out
+                sample_r.eq(cap(mic_rx.sample_r)),
+            ]
+
+            # all mics run off the same clock so we only need to grab the new
+            # sample flag from the first mic
+            if mi == 0:
+                m.d.comb += sample_new.eq(mic_rx.sample_new)
+
+        # shift out all microphone data in sequence
+        sample_buf = Signal(NUM_MICS*CAP_DATA_BITS)
+        m.d.comb += self.samples.data.eq(sample_buf[:CAP_DATA_BITS])
+
+        mic_counter = Signal(range(NUM_MICS-1))
+        with m.FSM("IDLE"):
+            with m.State("IDLE"):
+                with m.If(sample_new):
+                    # latch all microphone data into the sample buffer
+                    for mi in range(0, NUM_MICS):
+                        m.d.sync += sample_buf.word_select(
+                            mi, CAP_DATA_BITS).eq(sample_out[mi])
+                    m.d.sync += [
+                        mic_counter.eq(NUM_MICS-1), # reset output counter
+                        self.samples.first.eq(1), # prime first output flag
+                        self.samples.valid.eq(1), # notify about new samples
+                    ]
+                    m.next = "OUTPUT"
+
+            with m.State("OUTPUT"):
+                with m.If(self.samples.valid & self.samples.ready):
+                    # remaining samples are not the first
+                    m.d.sync += self.samples.first.eq(0)
+
+                    # shift out microphone data
+                    m.d.sync += [
+                        sample_buf.eq(sample_buf >> CAP_DATA_BITS),
+                        mic_counter.eq(mic_counter-1),
+                    ]
+
+                    with m.If(mic_counter == 0): # last mic
+                        m.d.sync += self.samples.valid.eq(0)
+                        m.next = "IDLE"
+
+        return m
 
 class MicDemo(wiring.Component):
     mic_sck: Out(1)
