@@ -3,6 +3,7 @@ from amaranth import *
 # constants which parameterize the design as a whole
 
 MIC_FREQ_HZ = 48000
+CAP_DATA_BITS = 16 # lowest 8 mic data bits thrown away
 USE_FAKE_MICS = True
 
 # total number of microphones to take input from (must be even)

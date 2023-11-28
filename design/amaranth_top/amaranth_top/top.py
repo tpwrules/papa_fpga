@@ -5,7 +5,7 @@ from amaranth.lib.cdc import ResetSynchronizer, FFSynchronizer
 from amaranth.lib.fifo import AsyncFIFO
 
 from .bus import AudioRAMBus, RegisterBus
-from .constants import MIC_FREQ_HZ, USE_FAKE_MICS, NUM_MICS
+from .constants import MIC_FREQ_HZ, CAP_DATA_BITS, USE_FAKE_MICS, NUM_MICS
 from .cyclone_v_pll import IntelPLL
 from .mic import MIC_FRAME_BITS, MIC_DATA_BITS, MicClockGenerator, \
     MicDataReceiver, FakeMic
@@ -15,7 +15,7 @@ class MicCapture(wiring.Component):
     mic_ws: Out(1)
     mic_data: In(NUM_MICS//2)
 
-    sample_out: Out(signed(MIC_DATA_BITS))
+    sample_out: Out(signed(CAP_DATA_BITS))
     sample_first: Out(1) # first sample of the microphone set
     sample_new: Out(1) # new microphone data is available
 
@@ -35,11 +35,13 @@ class MicCapture(wiring.Component):
             m.d.comb += mic_data.eq(self.mic_data)
         else:
             data_out = []
+            # mic sequence parameters
+            base = 1 << (MIC_DATA_BITS-1) # ensure top bit is captured
+            step = 1 << (MIC_DATA_BITS-CAP_DATA_BITS) # ensure change is seen
             for mi in range(0, NUM_MICS):
                 side = "left" if mi % 2 == 1 else "right"
                 # make sure each mic's data follows a unique sequence
-                fake_mic = FakeMic(side, 0x80_0000+(mi*256)+mi,
-                    inc=NUM_MICS*256+1)
+                fake_mic = FakeMic(side, base+(mi*step)+mi, inc=NUM_MICS*step+1)
                 m.submodules[f"fake_mic_{mi}"] = fake_mic
 
                 this_mic_data = Signal(1, name=f"mic_data_{mi}")
@@ -55,14 +57,16 @@ class MicCapture(wiring.Component):
                 m.d.comb += mic_data[mi//2].eq(data_out[mi] | data_out[mi+1])
 
         # wire up the microphone receivers
+        def cap(s): # transform from mic sample to captured sample
+            return s[MIC_DATA_BITS-CAP_DATA_BITS:]
         sample_out = []
         sample_new = Signal()
         for mi in range(0, NUM_MICS, 2): # one receiver takes data from two mics
             mic_rx = MicDataReceiver()
             m.submodules[f"mic_rx_{mi}"] = mic_rx
 
-            sample_r = Signal(signed(MIC_DATA_BITS), name=f"mic_sample_{mi}")
-            sample_l = Signal(signed(MIC_DATA_BITS), name=f"mic_sample_{mi+1}")
+            sample_r = Signal(signed(CAP_DATA_BITS), name=f"mic_sample_{mi}")
+            sample_l = Signal(signed(CAP_DATA_BITS), name=f"mic_sample_{mi+1}")
             sample_out.extend((sample_r, sample_l))
 
             m.d.comb += [
@@ -70,8 +74,8 @@ class MicCapture(wiring.Component):
                 mic_rx.mic_data_sof_sync.eq(clk_gen.mic_data_sof_sync),
                 mic_rx.mic_data.eq(mic_data[mi//2]),
 
-                sample_l.eq(mic_rx.sample_l), # sample data out
-                sample_r.eq(mic_rx.sample_r),
+                sample_l.eq(cap(mic_rx.sample_l)), # sample data out
+                sample_r.eq(cap(mic_rx.sample_r)),
             ]
 
             # all mics run off the same clock so we only need to grab the new
@@ -80,7 +84,7 @@ class MicCapture(wiring.Component):
                 m.d.comb += sample_new.eq(mic_rx.sample_new)
 
         # shift out all microphone data in sequence
-        sample_buf = Signal(NUM_MICS*MIC_DATA_BITS)
+        sample_buf = Signal(NUM_MICS*CAP_DATA_BITS)
         mic_counter = Signal(range(NUM_MICS-1))
         with m.FSM("IDLE"):
             with m.State("IDLE"):
@@ -88,7 +92,7 @@ class MicCapture(wiring.Component):
                     # latch all microphone data into the sample buffer
                     for mi in range(0, NUM_MICS):
                         m.d.sync += sample_buf.word_select(
-                            mi, MIC_DATA_BITS).eq(sample_out[mi])
+                            mi, CAP_DATA_BITS).eq(sample_out[mi])
                     m.d.sync += [
                         mic_counter.eq(NUM_MICS-1), # reset output counter
                         self.sample_first.eq(1), # prime first output flag
@@ -101,9 +105,9 @@ class MicCapture(wiring.Component):
                 m.d.sync += self.sample_first.eq(0)
 
                 # shift out microphone data
-                m.d.comb += self.sample_out.eq(sample_buf[:MIC_DATA_BITS])
+                m.d.comb += self.sample_out.eq(sample_buf[:CAP_DATA_BITS])
                 m.d.sync += [
-                    sample_buf.eq(sample_buf >> MIC_DATA_BITS),
+                    sample_buf.eq(sample_buf >> CAP_DATA_BITS),
                     mic_counter.eq(mic_counter-1),
                 ]
 
@@ -157,7 +161,7 @@ class Top(wiring.Component):
         )
         m.d.comb += [
             mic_fifo.w_data.eq(
-                (Cat(mic_capture.sample_out[8:24], mic_capture.sample_first))),
+                (Cat(mic_capture.sample_out, mic_capture.sample_first))),
             mic_fifo.w_en.eq(mic_capture.sample_new),
         ]
 
