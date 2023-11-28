@@ -40,7 +40,7 @@ def run_sim():
         for _ in range(3300):
             yield
 
-        yield top.register_bus.addr.eq(2)
+        yield top.register_bus.addr.eq(2*4)
         yield top.register_bus.w_data.eq(1)
         yield top.register_bus.w_en.eq(1)
         yield

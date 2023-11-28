@@ -85,7 +85,7 @@ class SampleWriter(wiring.Component):
         # address 3 is last address before the last swap
         with m.If(self.register_bus.r_en):
             m.d.sync += self.register_bus.r_data.eq(0) # clear out unused bits
-            with m.Switch(self.register_bus.addr & 0x3):
+            with m.Switch(self.register_bus.addr[2:4]):
                 with m.Case(0):
                     m.d.sync += self.register_bus.r_data.eq(test_reg)
 
@@ -100,7 +100,7 @@ class SampleWriter(wiring.Component):
                     m.d.sync += self.register_bus.r_data.eq(last_addr)
 
         with m.If(self.register_bus.w_en):
-            with m.Switch(self.register_bus.addr & 0x3):
+            with m.Switch(self.register_bus.addr[2:4]):
                 with m.Case(0):
                     m.d.sync += test_reg.eq(self.register_bus.w_data)
 
