@@ -1,5 +1,6 @@
 { buildPythonApplication
 , setuptools
+, numpy
 }:
 
 buildPythonApplication {
@@ -9,6 +10,10 @@ buildPythonApplication {
   src = ./../../../design/application;
 
   nativeBuildInputs = [ setuptools ];
+
+  propagatedBuildInputs = [
+    numpy
+  ];
 
   pythonImportsCheck = [ "application" ];
 }

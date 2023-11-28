@@ -108,7 +108,7 @@
     design.application
 
     (python3.withPackages (p: [
-      (p.callPackage ./../../packages/numpy-1.25.1 {})
+      p.numpy
     ]))
   ];
 
