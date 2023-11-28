@@ -12,14 +12,15 @@ class SampleStream(Signature):
         super().__init__({
             "data": Out(signed(CAP_DATA_BITS)),
             "first": Out(1), # first sample of the microphone set
-            "new": Out(1), # new microphone data is available
+
+            "ready": In(1), # receiver is ready for new data
+            "valid": Out(1), # transmitter has new data
         })
 
 class SampleStreamFIFO(wiring.Component):
     samples_w: In(SampleStream())
     samples_r: Out(SampleStream())
-    
-    sample_ack: In(1)
+
     samples_count: Out(32)
 
     def __init__(self, *, w_domain, r_domain="sync", depth=512):
@@ -36,12 +37,13 @@ class SampleStreamFIFO(wiring.Component):
         m.d.comb += [
             # write data
             fifo.w_data.eq(Cat(self.samples_w.data, self.samples_w.first)),
-            fifo.w_en.eq(self.samples_w.new),
+            fifo.w_en.eq(self.samples_w.valid & self.samples_w.ready),
+            self.samples_w.ready.eq(fifo.w_rdy),
 
             # read data
             Cat(self.samples_r.data, self.samples_r.first).eq(fifo.r_data),
-            self.samples_r.new.eq(fifo.r_rdy),
-            fifo.r_en.eq(self.sample_ack),
+            fifo.r_en.eq(self.samples_r.ready & self.samples_r.valid),
+            self.samples_r.valid.eq(fifo.r_rdy),
             self.samples_count.eq(fifo.r_level),
         ]
 
@@ -49,7 +51,6 @@ class SampleStreamFIFO(wiring.Component):
 
 class SampleWriter(wiring.Component):
     samples: In(SampleStream())
-    sample_ack: Out(1)
     samples_count: In(32)
 
     audio_ram: Out(AudioRAMBus())
@@ -97,7 +98,7 @@ class SampleWriter(wiring.Component):
                     m.d.comb += self.audio_ram.data_last.eq(1)
 
                 with m.If(self.audio_ram.data_ready):
-                    m.d.comb += self.sample_ack.eq(1)
+                    m.d.comb += self.samples.ready.eq(1)
                     m.d.sync += burst_counter.eq(burst_counter-1)
                     with m.If(burst_counter == 0):
                         m.d.sync += [

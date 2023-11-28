@@ -84,7 +84,9 @@ class MicCapture(wiring.Component):
 
         # shift out all microphone data in sequence
         sample_buf = Signal(NUM_MICS*CAP_DATA_BITS)
-        mic_counter = Signal(range(NUM_MICS-1))
+        m.d.comb += self.samples.data.eq(sample_buf[:CAP_DATA_BITS])
+
+        mic_counter = Signal(range(NUM_MICS-1))        
         with m.FSM("IDLE"):
             with m.State("IDLE"):
                 with m.If(sample_new):
@@ -95,24 +97,24 @@ class MicCapture(wiring.Component):
                     m.d.sync += [
                         mic_counter.eq(NUM_MICS-1), # reset output counter
                         self.samples.first.eq(1), # prime first output flag
-                        self.samples.new.eq(1), # notify about new samples
+                        self.samples.valid.eq(1), # notify about new samples
                     ]
                     m.next = "OUTPUT"
 
             with m.State("OUTPUT"):
-                # remaining samples are not the first
-                m.d.sync += self.samples.first.eq(0)
+                with m.If(self.samples.valid & self.samples.ready):
+                    # remaining samples are not the first
+                    m.d.sync += self.samples.first.eq(0)
 
-                # shift out microphone data
-                m.d.comb += self.samples.data.eq(sample_buf[:CAP_DATA_BITS])
-                m.d.sync += [
-                    sample_buf.eq(sample_buf >> CAP_DATA_BITS),
-                    mic_counter.eq(mic_counter-1),
-                ]
+                    # shift out microphone data
+                    m.d.sync += [
+                        sample_buf.eq(sample_buf >> CAP_DATA_BITS),
+                        mic_counter.eq(mic_counter-1),
+                    ]
 
-                with m.If(mic_counter == 0): # last mic
-                    m.d.sync += self.samples.new.eq(0)
-                    m.next = "IDLE"
+                    with m.If(mic_counter == 0): # last mic
+                        m.d.sync += self.samples.valid.eq(0)
+                        m.next = "IDLE"
 
         return m
 
@@ -161,7 +163,6 @@ class Top(wiring.Component):
         connect(m, mic_fifo.samples_r, writer.samples)
         connect(m, writer.audio_ram, flipped(self.audio_ram))
         m.d.comb += [
-            mic_fifo.sample_ack.eq(writer.sample_ack),
             writer.samples_count.eq(mic_fifo.samples_count),
 
             self.status.eq(writer.status),
