@@ -71,11 +71,6 @@ class SampleWriter(wiring.Component):
         # we are swapping (swap is desired and the current FIFO word is the
         # start of a new set, so no more addr increments or FIFO acks)
         swapping = Signal(1)
-        # the swap has been processed and we can cancel the desire
-        # (used to prevent a race condition with the host desiring another one)
-        swap_finished = Signal(1)
-        with m.If(swap_finished):
-            m.d.sync += swap_desired.eq(0)
 
         # address 0 is read/write for testing
         # address 1 is number of microphones, read only
@@ -180,8 +175,8 @@ class SampleWriter(wiring.Component):
                             last_addr.eq(buf_addr), # save address for host
                             last_buf.eq(curr_buf), # and the buffer it's for
                             buf_addr.eq(0), # reset buffer to start
+                            swap_desired.eq(0), # ack swap
                         ]
-                        m.d.comb += swap_finished.eq(1) # ack swap
 
                     m.next = "IDLE"
 
