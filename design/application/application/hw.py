@@ -66,6 +66,20 @@ class HW:
 
         return self.d[which_buf, :buf_pos].reshape(-1, self.n)
 
+    def set_gain(self, gain):
+        # set the value to multiply the microphone data by (i.e. gain)
+
+        gain = int(gain)
+        if gain < 1 or gain > 256:
+            raise ValueError("must be 1 <= gain <= 256")
+
+        if (gain & (gain - 1)) != 0:
+            raise ValueError("gain must be a power of 2")
+
+        gain_log2 = gain.bit_length() - 1
+
+        self.r[4] = gain_log2
+
     def close(self):
         if self._closed:
             raise ValueError

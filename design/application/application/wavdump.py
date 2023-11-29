@@ -30,6 +30,8 @@ def parse_args():
         help="File to save .wav data to.")
     parser.add_argument('-c', '--channels', type=int, metavar="N", default=2,
         help="Number of channels to capture (from first N mics).")
+    parser.add_argument('-g', '--gain', type=int, default=1,
+        help="Gain value to multiply microphone data by.")
 
     return parser.parse_args()
 
@@ -37,6 +39,7 @@ def wavdump():
     args = parse_args()
 
     hw = HW()
+    hw.set_gain(args.gain)
 
     channels = args.channels
     if channels < 1 or channels > hw.n:
