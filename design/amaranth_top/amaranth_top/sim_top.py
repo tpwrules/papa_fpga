@@ -32,7 +32,7 @@ def run_sim():
     def mic_proc():
         for _ in range(64):
             yield
-        yield top.mic_data.eq(1)
+        yield top.mic_data_raw.eq(1)
         yield
 
     # request a buffer switch

@@ -43,7 +43,7 @@ class Top(wiring.Component):
 
     mic_sck: Out(1) # microphone data bus
     mic_ws: Out(1)
-    mic_data: In(NUM_MICS//2)
+    mic_data_raw: In(NUM_MICS//2)
 
     def __init__(self):
         # TODO: gross and possibly illegal (is the memory map always the same?)
@@ -79,7 +79,7 @@ class Top(wiring.Component):
         m.d.comb += [
             self.mic_sck.eq(mic_capture.mic_sck),
             self.mic_ws.eq(mic_capture.mic_ws),
-            mic_capture.mic_data.eq(self.mic_data),
+            mic_capture.mic_data_raw.eq(self.mic_data_raw),
         ]
 
         # FIFO to cross domains from mic capture
@@ -189,7 +189,7 @@ class FPGATop(wiring.Component):
             self.GPIO_0_OUT[0].eq(top.mic_ws),
         ]
         for mpi in range(NUM_MICS//2):
-            m.d.comb += top.mic_data[mpi].eq(self.GPIO_0_IN[33-mpi])
+            m.d.comb += top.mic_data_raw[mpi].eq(self.GPIO_0_IN[33-mpi])
 
         # hook up audio RAM bus to AXI port
         m.d.comb += [

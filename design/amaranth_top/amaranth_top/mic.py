@@ -51,7 +51,7 @@ class MicClockGenerator(wiring.Component):
 class MicDataReceiver(wiring.Component):
     # receive data from a microphone
     mic_sck: In(1)
-    mic_data: In(1)
+    mic_data_raw: In(1)
     mic_data_sof_sync: In(1)
 
     sample_l: Out(signed(MIC_DATA_BITS))
@@ -63,7 +63,7 @@ class MicDataReceiver(wiring.Component):
 
         # synchronize mic data to module clock
         mic_data_sync = Signal()
-        m.submodules += FFSynchronizer(self.mic_data, mic_data_sync)
+        m.submodules += FFSynchronizer(self.mic_data_raw, mic_data_sync)
 
         buffer = Signal(MIC_FRAME_BITS)
         # shift in new data on rising edge of clock into the MSB of buffer
@@ -87,7 +87,7 @@ class FakeMic(wiring.Component):
     mic_sck: In(1)
     mic_ws: In(1)
 
-    mic_data: Out(1)
+    mic_data_raw: Out(1)
 
     def __init__(self, channel, start=0, inc=1):
         super().__init__()
@@ -126,7 +126,7 @@ class FakeMic(wiring.Component):
         with m.If(self._rose(m, self.mic_sck)):
             m.d.sync += [
                 buffer.eq(buffer << 1),
-                self.mic_data.eq(buffer[-1]),
+                self.mic_data_raw.eq(buffer[-1]),
             ]
 
         return m
@@ -152,7 +152,7 @@ class FakeMic(wiring.Component):
 class MicCapture(wiring.Component):
     mic_sck: Out(1) # microphone data bus
     mic_ws: Out(1)
-    mic_data: In(NUM_MICS//2)
+    mic_data_raw: In(NUM_MICS//2)
 
     samples: Out(SampleStream())
 
@@ -167,11 +167,11 @@ class MicCapture(wiring.Component):
         ]
 
         # hook up mic data to fake or real microphones as appropriate
-        mic_data = Signal(NUM_MICS//2)
+        mic_data_raw = Signal(NUM_MICS//2)
         if not USE_FAKE_MICS:
-            m.d.comb += mic_data.eq(self.mic_data)
+            m.d.comb += mic_data_raw.eq(self.mic_data_raw)
         else:
-            data_out = []
+            raw_outs = []
             # mic sequence parameters
             base = 1 << (MIC_DATA_BITS-1) # ensure top bit is captured
             step = 1 << (MIC_DATA_BITS-CAP_DATA_BITS) # ensure change is seen
@@ -181,17 +181,17 @@ class MicCapture(wiring.Component):
                 fake_mic = FakeMic(side, base+(mi*step)+mi, inc=NUM_MICS*step+1)
                 m.submodules[f"fake_mic_{mi}"] = fake_mic
 
-                this_mic_data = Signal(1, name=f"mic_data_{mi}")
-                data_out.append(this_mic_data)
+                this_mic_fake_raw = Signal(1, name=f"mic_fake_raw_{mi}")
+                raw_outs.append(this_mic_fake_raw)
 
                 m.d.comb += [
                     fake_mic.mic_sck.eq(clk_gen.mic_sck),
                     fake_mic.mic_ws.eq(clk_gen.mic_ws),
-                    this_mic_data.eq(fake_mic.mic_data),
+                    this_mic_fake_raw.eq(fake_mic.mic_data_raw),
                 ]
 
             for mi in range(0, NUM_MICS, 2): # wire up mic outputs
-                m.d.comb += mic_data[mi//2].eq(data_out[mi] | data_out[mi+1])
+                m.d.comb += mic_data_raw[mi//2].eq(raw_outs[mi]|raw_outs[mi+1])
 
         # wire up the microphone receivers
         def cap(s): # transform from mic sample to captured sample
@@ -209,7 +209,7 @@ class MicCapture(wiring.Component):
             m.d.comb += [
                 mic_rx.mic_sck.eq(clk_gen.mic_sck), # data in
                 mic_rx.mic_data_sof_sync.eq(clk_gen.mic_data_sof_sync),
-                mic_rx.mic_data.eq(mic_data[mi//2]),
+                mic_rx.mic_data_raw.eq(mic_data_raw[mi//2]),
 
                 sample_l.eq(cap(mic_rx.sample_l)), # sample data out
                 sample_r.eq(cap(mic_rx.sample_r)),
@@ -283,7 +283,7 @@ class MicDemo(wiring.Component):
             mic_r.mic_sck.eq(mic_clk.mic_sck),
             mic_l.mic_ws.eq(mic_clk.mic_ws),
             mic_r.mic_ws.eq(mic_clk.mic_ws),
-            mic_rcv.mic_data.eq(mic_l.mic_data | mic_r.mic_data),
+            mic_rcv.mic_data_raw.eq(mic_l.mic_data_raw | mic_r.mic_data_raw),
         ]
 
         # wire demo outputs
