@@ -18,11 +18,32 @@ class Top(wiring.Component):
     button:     In(1)
 
     audio_ram: Out(AudioRAMBus())
-    csr_bus: In(csr.Signature(addr_width=8, data_width=32))
+    csr_bus: None # filled in by constructor
 
     mic_sck: Out(1) # microphone data bus
     mic_ws: Out(1)
     mic_data: In(NUM_MICS//2)
+
+    def __init__(self):
+        self._csr_decoder = csr.Decoder(addr_width=8, data_width=32)
+
+        self._sample_writer = SampleWriter()
+
+        # add subordinate buses to decoder
+        # fix address at 0 for now for program consistency
+        self._csr_decoder.add(self._sample_writer.csr_bus, addr=0)
+
+        # TODO: is this legit? it's ugly but we can't mutate self.signature
+        # without adding our own property since it's generated fresh each time
+        self._signature = super().signature
+        self._signature.members["csr_bus"] = \
+            In(self._csr_decoder.bus.signature.flip())
+
+        super().__init__() # initialize component and attributes from signature
+
+    @property
+    def signature(self):
+        return self._signature
 
     def elaborate(self, platform):
         m = Module()
@@ -37,6 +58,11 @@ class Top(wiring.Component):
             m.d.sync += self.blink.eq(~self.blink & button)
         with m.Else():
             m.d.sync += counter.eq(counter + 1)
+
+
+        # decode busses for all the subordinate components
+        m.submodules.csr_decoder = self._csr_decoder
+        connect(m, flipped(self.csr_bus), self._csr_decoder.bus)
 
         # instantiate mic capture unit in its domain
         m.submodules.mic_capture = mic_capture = \
@@ -53,23 +79,14 @@ class Top(wiring.Component):
         connect(m, mic_capture.samples, mic_fifo.samples_w)
 
         # writer to save sample data to memory
-        m.submodules.writer = writer = SampleWriter()
-        connect(m, mic_fifo.samples_r, writer.samples)
-        connect(m, writer.audio_ram, flipped(self.audio_ram))
+        m.submodules.sample_writer = sample_writer = self._sample_writer
+        connect(m, mic_fifo.samples_r, sample_writer.samples)
+        connect(m, sample_writer.audio_ram, flipped(self.audio_ram))
         m.d.comb += [
-            writer.samples_count.eq(mic_fifo.samples_count),
+            sample_writer.samples_count.eq(mic_fifo.samples_count),
 
-            self.status.eq(writer.status),
+            self.status.eq(sample_writer.status),
         ]
-
-        # decode busses for all the subordinate components
-        # TODO: how to avoid duplication with self.csr_bus.signature?
-        m.submodules.csr_decoder = csr_decoder = csr.Decoder(
-            addr_width=8, data_width=32)
-        connect(m, flipped(self.csr_bus), csr_decoder.bus)
-
-        # fix address at 0 for now for program consistency
-        csr_decoder.add(writer.csr_bus, addr=0)
 
         return m
 

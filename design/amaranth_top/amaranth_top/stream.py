@@ -57,7 +57,7 @@ class SampleWriter(wiring.Component):
     samples_count: In(32)
 
     audio_ram: Out(AudioRAMBus())
-    #csr_bus: None # filled in by constructor
+    csr_bus: None # filled in by constructor
 
     status: Out(3)
 
@@ -81,26 +81,26 @@ class SampleWriter(wiring.Component):
         last_addr: csr_field.R(32) # last address in the buffer swapped from
 
     def __init__(self):
-        self._r_test = self.Test()
-        self._r_sys_params = self.SysParams()
-        self._r_swap_state = self.SwapState()
-        self._r_swap_addr = self.SwapAddr()
+        self._test = self.Test()
+        self._sys_params = self.SysParams()
+        self._swap_state = self.SwapState()
+        self._swap_addr = self.SwapAddr()
 
-        r_map = csr.RegisterMap()
-        r_map.add_register(self._r_test, name="test")
-        r_map.add_register(self._r_sys_params, name="sys_params")
-        r_map.add_register(self._r_swap_state, name="swap_state")
-        r_map.add_register(self._r_swap_addr, name="swap_addr")
-        # TODO: how to avoid duplication with self.csr_bus.signature?
+        reg_map = csr.RegisterMap()
+        reg_map.add_register(self._test, name="test")
+        reg_map.add_register(self._sys_params, name="sys_params")
+        reg_map.add_register(self._swap_state, name="swap_state")
+        reg_map.add_register(self._swap_addr, name="swap_addr")
         self._csr_bridge = csr.Bridge(
-            r_map, addr_width=2, data_width=32, name="sample_writer")
+            reg_map, addr_width=2, data_width=32, name="sample_writer")
 
-        # TODO: is this legit? it's ugly
+        # TODO: is this legit? it's ugly but we can't mutate self.signature
+        # without adding our own property since it's generated fresh each time
         self._signature = super().signature
         self._signature.members["csr_bus"] = \
             In(self._csr_bridge.bus.signature.flip())
 
-        super().__init__() # initialize component and attributes
+        super().__init__() # initialize component and attributes from signature
 
     @property
     def signature(self):
@@ -109,17 +109,14 @@ class SampleWriter(wiring.Component):
     def elaborate(self, platform):
         m = Module()
 
-        r_test = self._r_test
-        r_sys_params = self._r_sys_params
-        r_swap_state = self._r_swap_state
-        r_swap_addr = self._r_swap_addr
+        # bridge containing CSRs
         m.submodules.csr_bridge = csr_bridge = self._csr_bridge
         connect(m, flipped(self.csr_bus), csr_bridge.bus)
 
-        m.d.comb += r_sys_params.f.num_mics.r_data.eq(NUM_MICS)
+        m.d.comb += self._sys_params.f.num_mics.r_data.eq(NUM_MICS)
 
         swap_desired = Signal() # the host desires a swap
-        m.d.comb += swap_desired.eq(r_swap_state.f.swap.data)
+        m.d.comb += swap_desired.eq(self._swap_state.f.swap.data)
 
         curr_buf = Signal(1) # current buffer we're filling
         # we are swapping (swap is desired and the current FIFO word is the
@@ -192,12 +189,12 @@ class SampleWriter(wiring.Component):
                             buf_addr.eq(0), # reset the address to start
 
                             # save address for host
-                            r_swap_addr.f.last_addr.r_data.eq(buf_addr),
+                            self._swap_addr.f.last_addr.r_data.eq(buf_addr),
                             # and the buffer it's for
-                            r_swap_state.f.last_buf.r_data.eq(curr_buf),
+                            self._swap_state.f.last_buf.r_data.eq(curr_buf),
                         ]
                         # acknowledge swap
-                        m.d.comb += r_swap_state.f.swap.clear.eq(1)
+                        m.d.comb += self._swap_state.f.swap.clear.eq(1)
 
                     m.next = "IDLE"
 
