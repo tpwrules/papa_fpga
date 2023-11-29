@@ -36,15 +36,21 @@ def run_sim():
         yield
 
     def reg_proc():
-        for _ in range(3300):
-            yield
-
         def write(addr, data):
             yield top.csr_bus.addr.eq(addr)
             yield top.csr_bus.w_data.eq(data)
             yield top.csr_bus.w_stb.eq(1)
             yield
             yield top.csr_bus.w_stb.eq(0)
+            yield
+
+        for _ in range(512):
+            yield
+
+        # request switch to fake mics
+        yield from write(5, 1)
+
+        for _ in range(3300-512): # delay until a nice time to switch
             yield
 
         # request a buffer switch

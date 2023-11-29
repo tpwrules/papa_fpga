@@ -88,6 +88,7 @@ class Top(wiring.Component):
         m.submodules.mic_capture_regs = cap_regs = self._mic_capture_regs
         m.d.comb += [
             mic_capture.gain.eq(cap_regs.gain),
+            mic_capture.use_fake_mics.eq(cap_regs.use_fake_mics)
         ]
 
         # FIFO to cross domains from mic capture

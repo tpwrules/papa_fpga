@@ -7,7 +7,7 @@ from amaranth.sim.core import Simulator, Delay, Settle
 from amaranth_soc import csr
 from amaranth_soc.csr import field as csr_field
 
-from .constants import MIC_FREQ_HZ, NUM_MICS, USE_FAKE_MICS, CAP_DATA_BITS
+from .constants import MIC_FREQ_HZ, NUM_MICS, CAP_DATA_BITS
 from .stream import SampleStream
 from .misc import FFDelay
 
@@ -57,6 +57,10 @@ class MicDataReceiver(wiring.Component):
     mic_data_raw: In(1)
     mic_data_sof_sync: In(1)
 
+    # optional fake microphone input. switch is in no way clean!
+    use_fake_mic: In(1)
+    mic_fake_data_raw: In(1)
+
     sample_l: Out(signed(MIC_DATA_BITS))
     sample_r: Out(signed(MIC_DATA_BITS))
     sample_new: Out(1) # pulsed when new sample data is available
@@ -66,12 +70,15 @@ class MicDataReceiver(wiring.Component):
 
         # synchronize mic data to module clock
         mic_data_sync = Signal()
+        fake_data_sync = Signal()
         m.submodules += FFSynchronizer(self.mic_data_raw, mic_data_sync)
+        m.submodules += FFDelay(self.mic_fake_data_raw, fake_data_sync)
 
         buffer = Signal(MIC_FRAME_BITS)
         # shift in new data on rising edge of clock into the MSB of buffer
         with m.If(self.mic_sck):
-            m.d.sync += buffer.eq(Cat(buffer[1:], mic_data_sync))
+            m.d.sync += buffer.eq(Cat(buffer[1:], Mux(
+                self.use_fake_mic, fake_data_sync, mic_data_sync)))
 
         m.d.sync += self.sample_new.eq(0) # usually no data available
         # once the frame is over, save the data in the outputs
@@ -195,17 +202,23 @@ class MicCaptureRegs(wiring.Component):
 
     # settings, synced to mic capture domain (given by o_domain)
     gain: Out(4)
+    use_fake_mics: Out(1)
 
     class Gain(csr.Register):
         gain: csr_field.RW(4)
+
+    class FakeMics(csr.Register):
+        use_fake_mics: csr_field.RW(1)
 
     def __init__(self, *, o_domain):
         self._o_domain = o_domain
 
         self._gain = self.Gain()
+        self._fake_mics = self.FakeMics()
 
         reg_map = csr.RegisterMap()
         reg_map.add_register(self._gain, name="gain")
+        reg_map.add_register(self._fake_mics, name="fake_mics")
 
         # TODO: gross and possibly illegal (is the memory map always the same?)
         csr_sig = self.__annotations__["csr_bus"].signature
@@ -224,6 +237,8 @@ class MicCaptureRegs(wiring.Component):
 
         m.submodules += FFSynchronizer(self._gain.f.gain.data, self.gain,
             o_domain=self._o_domain)
+        m.submodules += FFSynchronizer(self._fake_mics.f.use_fake_mics.data,
+            self.use_fake_mics, o_domain=self._o_domain)
 
         return m
 
@@ -234,6 +249,7 @@ class MicCapture(wiring.Component):
 
     # settings, synced to our domain
     gain: In(4)
+    use_fake_mics: In(1)
 
     samples: Out(SampleStream())
 
@@ -247,32 +263,29 @@ class MicCapture(wiring.Component):
             self.mic_ws.eq(clk_gen.mic_ws),
         ]
 
-        # hook up mic data to fake or real microphones as appropriate
-        mic_data_raw = Signal(NUM_MICS//2)
-        if not USE_FAKE_MICS:
-            m.d.comb += mic_data_raw.eq(self.mic_data_raw)
-        else:
-            raw_outs = []
-            # mic sequence parameters
-            base = 1 << (MIC_DATA_BITS-1) # ensure top bit is captured
-            step = 1 << (MIC_DATA_BITS-CAP_DATA_BITS) # ensure change is seen
-            for mi in range(0, NUM_MICS):
-                side = "left" if mi % 2 == 1 else "right"
-                # make sure each mic's data follows a unique sequence
-                fake_mic = FakeMic(side, base+(mi*step)+mi, inc=NUM_MICS*step+1)
-                m.submodules[f"fake_mic_{mi}"] = fake_mic
+        # set up fake microphones for testing purposes
+        fake_data_raw = Signal(NUM_MICS//2)
+        fake_outs = []
+        # mic sequence parameters
+        base = 1 << (MIC_DATA_BITS-1) # ensure top bit is captured
+        step = 1 << (MIC_DATA_BITS-CAP_DATA_BITS) # ensure change is seen
+        for mi in range(0, NUM_MICS):
+            side = "left" if mi % 2 == 1 else "right"
+            # make sure each mic's data follows a unique sequence when captured
+            fake_mic = FakeMic(side, base+(mi*step)+mi, inc=NUM_MICS*step+1)
+            m.submodules[f"fake_mic_{mi}"] = fake_mic
 
-                this_mic_fake_raw = Signal(1, name=f"mic_fake_raw_{mi}")
-                raw_outs.append(this_mic_fake_raw)
+            this_mic_fake_raw = Signal(1, name=f"mic_fake_raw_{mi}")
+            fake_outs.append(this_mic_fake_raw)
 
-                m.d.comb += [
-                    fake_mic.mic_sck.eq(clk_gen.mic_sck),
-                    fake_mic.mic_ws.eq(clk_gen.mic_ws),
-                    this_mic_fake_raw.eq(fake_mic.mic_data_raw),
-                ]
+            m.d.comb += [
+                fake_mic.mic_sck.eq(clk_gen.mic_sck),
+                fake_mic.mic_ws.eq(clk_gen.mic_ws),
+                this_mic_fake_raw.eq(fake_mic.mic_data_raw),
+            ]
 
-            for mi in range(0, NUM_MICS, 2): # wire up mic outputs
-                m.d.comb += mic_data_raw[mi//2].eq(raw_outs[mi]|raw_outs[mi+1])
+        for mi in range(0, NUM_MICS, 2): # wire up mic outputs
+            m.d.comb += fake_data_raw[mi//2].eq(fake_outs[mi] | fake_outs[mi+1])
 
         # wire up the microphone receivers
         sample_out = []
@@ -288,7 +301,10 @@ class MicCapture(wiring.Component):
             m.d.comb += [
                 mic_rx.mic_sck.eq(clk_gen.mic_sck), # data in
                 mic_rx.mic_data_sof_sync.eq(clk_gen.mic_data_sof_sync),
-                mic_rx.mic_data_raw.eq(mic_data_raw[mi//2]),
+                mic_rx.mic_data_raw.eq(self.mic_data_raw[mi//2]),
+
+                mic_rx.use_fake_mic.eq(self.use_fake_mics), # fake data in
+                mic_rx.mic_fake_data_raw.eq(fake_data_raw[mi//2]),
 
                 sample_l.eq(mic_rx.sample_l), # sample data out
                 sample_r.eq(mic_rx.sample_r),
