@@ -109,10 +109,10 @@ class SampleWriter(wiring.Component):
     def elaborate(self, platform):
         m = Module()
 
-        m.submodules.r_test = r_test = self._r_test
-        m.submodules.r_sys_params = r_sys_params = self._r_sys_params
-        m.submodules.r_swap_state = r_swap_state = self._r_swap_state
-        m.submodules.r_swap_addr = r_swap_addr = self._r_swap_addr
+        r_test = self._r_test
+        r_sys_params = self._r_sys_params
+        r_swap_state = self._r_swap_state
+        r_swap_addr = self._r_swap_addr
         m.submodules.csr_bridge = csr_bridge = self._csr_bridge
         connect(m, flipped(self.csr_bus), csr_bridge.bus)
 

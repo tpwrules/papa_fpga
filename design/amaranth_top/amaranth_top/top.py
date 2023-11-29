@@ -66,10 +66,10 @@ class Top(wiring.Component):
         # TODO: how to avoid duplication with self.csr_bus.signature?
         m.submodules.csr_decoder = csr_decoder = csr.Decoder(
             addr_width=8, data_width=32)
-        # fix address at 0 for now for program consistency
-        # TODO: also seems illegit
-        csr_decoder.add(writer.csr_bus.signature.create(), addr=0)
         connect(m, flipped(self.csr_bus), csr_decoder.bus)
+
+        # fix address at 0 for now for program consistency
+        csr_decoder.add(writer.csr_bus, addr=0)
 
         return m
 
