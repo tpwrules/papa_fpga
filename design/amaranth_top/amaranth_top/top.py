@@ -12,10 +12,31 @@ from .cyclone_v_pll import IntelPLL
 from .mic import MicCapture, MIC_FRAME_BITS
 from .stream import SampleStream, SampleStreamFIFO, SampleWriter
 
+class Blinker(wiring.Component):
+    button_raw: In(1)
+    blink: Out(1)
+
+    def elaborate(self, platform):
+        m = Module()
+
+        button_sync = Signal() # active low
+        m.submodules += FFSynchronizer(self.button_raw, button_sync)
+
+        MAX_COUNT = int(25e6)
+        counter = Signal(range(0, MAX_COUNT-1))
+        with m.If(counter == MAX_COUNT-1):
+            m.d.sync += counter.eq(0)
+            m.d.sync += self.blink.eq(~self.blink & button_sync)
+        with m.Else():
+            m.d.sync += counter.eq(counter + 1)
+
+        return m
+
 class Top(wiring.Component):
-    blink:      Out(1)
-    status:     Out(3)
-    button:     In(1)
+    button_raw: In(1)
+    blink: Out(1)
+
+    status_leds: Out(3)
 
     audio_ram: Out(AudioRAMBus())
     csr_bus: In(csr.Signature(addr_width=8, data_width=32))
@@ -42,17 +63,11 @@ class Top(wiring.Component):
     def elaborate(self, platform):
         m = Module()
 
-        button = Signal()
-        m.submodules += FFSynchronizer(self.button, button)
-
-        MAX_COUNT = int(25e6)
-        counter = Signal(range(0, MAX_COUNT-1))
-        with m.If(counter == MAX_COUNT-1):
-            m.d.sync += counter.eq(0)
-            m.d.sync += self.blink.eq(~self.blink & button)
-        with m.Else():
-            m.d.sync += counter.eq(counter + 1)
-
+        m.submodules.blinker = blinker = Blinker()
+        m.d.comb += [
+            blinker.button_raw.eq(self.button_raw),
+            self.blink.eq(blinker.blink),
+        ]
 
         # decode busses for all the subordinate components
         m.submodules.csr_decoder = self._csr_decoder
@@ -79,7 +94,7 @@ class Top(wiring.Component):
         m.d.comb += [
             sample_writer.samples_count.eq(mic_fifo.samples_count),
 
-            self.status.eq(sample_writer.status),
+            self.status_leds.eq(sample_writer.status_leds),
         ]
 
         return m
@@ -162,18 +177,11 @@ class FPGATop(wiring.Component):
 
         # wire up top module
         m.submodules.top = top = Top()
-        for name, member in top.signature.members.items():
-            try:
-                if not isinstance(getattr(self, name), Signal):
-                    continue
-            except AttributeError:
-                continue
-            if member.flow == In:
-                m.d.comb += getattr(top, name).eq(getattr(self, name))
-            elif member.flow == Out:
-                m.d.comb += getattr(self, name).eq(getattr(top, name))
-            else:
-                raise ValueError("bad flow")
+        m.d.comb += [
+            top.button_raw.eq(self.button),
+            self.blink.eq(top.blink),
+            self.status.eq(top.status_leds),
+        ]
 
         # wire up microphone data bus
         m.d.comb += [

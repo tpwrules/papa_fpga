@@ -59,7 +59,7 @@ class SampleWriter(wiring.Component):
     audio_ram: Out(AudioRAMBus())
     csr_bus: In(csr.Signature(addr_width=2, data_width=32))
 
-    status: Out(3)
+    status_leds: Out(3)
 
     class Test(csr.Register):
         # read/write area for testing
@@ -148,7 +148,7 @@ class SampleWriter(wiring.Component):
                         # init burst
                         burst_counter.eq(BURST_BEATS-1),
                         # toggle LED
-                        self.status[0].eq(~self.status[0]),
+                        self.status_leds[0].eq(~self.status_leds[0]),
                     ]
                     m.next = "BURST"
 
@@ -167,14 +167,14 @@ class SampleWriter(wiring.Component):
                             # deassert valid
                             self.audio_ram.data_valid.eq(0),
                             # toggle LED
-                            self.status[1].eq(~self.status[1]),
+                            self.status_leds[1].eq(~self.status_leds[1]),
                         ]
                         m.next = "TWAIT"
 
             with m.State("TWAIT"):
                 with m.If(self.audio_ram.txn_done):
                     # toggle LED
-                    m.d.sync += self.status[2].eq(~self.status[2])
+                    m.d.sync += self.status_leds[2].eq(~self.status_leds[2])
 
                     # it's time to finalize the swap? then do it
                     with m.If(swapping):
