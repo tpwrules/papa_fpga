@@ -80,6 +80,11 @@ class HW:
 
         self.r[4] = gain_log2
 
+    def set_use_fake_mics(self, use_fake_mics=True):
+        # set whether fake mics should be used or not
+
+        self.r[5] = 1 if use_fake_mics else 0
+
     def close(self):
         if self._closed:
             raise ValueError

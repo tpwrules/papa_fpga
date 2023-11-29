@@ -32,6 +32,8 @@ def parse_args():
         help="Number of channels to capture (from first N mics).")
     parser.add_argument('-g', '--gain', type=int, default=1,
         help="Gain value to multiply microphone data by.")
+    parser.add_argument('-f', '--fake', action="store_true",
+        help="Capture from fake microphones instead of real ones.")
 
     return parser.parse_args()
 
@@ -40,6 +42,7 @@ def wavdump():
 
     hw = HW()
     hw.set_gain(args.gain)
+    hw.set_use_fake_mics(args.fake)
 
     channels = args.channels
     if channels < 1 or channels > hw.n:
