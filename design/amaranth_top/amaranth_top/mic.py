@@ -165,8 +165,26 @@ class GainProcessor(wiring.Component):
     def elaborate(self, platform):
         m = Module()
 
-        m.d.comb += self.sample_out.eq(
-            self.sample_in[MIC_DATA_BITS-CAP_DATA_BITS:])
+        # compute signed minimum and maximum output values
+        max_val = (1<<(CAP_DATA_BITS-1))-1
+        min_val = -(max_val)-1
+
+        # scale by shifting according to gain
+        scaled_data = Signal(signed(2*MIC_DATA_BITS))
+        m.d.comb += scaled_data.eq(self.sample_in << self.gain)
+
+        # remove low bits
+        num_low_bits = MIC_DATA_BITS-CAP_DATA_BITS
+        truncated_data = Signal(signed(2*MIC_DATA_BITS - num_low_bits))
+        m.d.comb += truncated_data.eq(scaled_data >> num_low_bits)
+
+        # clamp truncated value
+        with m.If(truncated_data < min_val):
+            m.d.comb += self.sample_out.eq(min_val)
+        with m.Elif(truncated_data > max_val):
+            m.d.comb += self.sample_out.eq(max_val)
+        with m.Else():
+            m.d.comb += self.sample_out.eq(truncated_data)
 
         return m
 
