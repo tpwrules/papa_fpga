@@ -1,8 +1,11 @@
 from amaranth import *
 from amaranth.lib import wiring
-from amaranth.lib.wiring import In, Out
+from amaranth.lib.wiring import In, Out, connect, flipped
 from amaranth.lib.cdc import FFSynchronizer
 from amaranth.sim.core import Simulator, Delay, Settle
+
+from amaranth_soc import csr
+from amaranth_soc.csr import field as csr_field
 
 from .constants import MIC_FREQ_HZ, NUM_MICS, USE_FAKE_MICS, CAP_DATA_BITS
 from .stream import SampleStream
@@ -149,10 +152,51 @@ class FakeMic(wiring.Component):
 
         return last & ~s
 
+# separate component for CDC reasons
+class MicCaptureRegs(wiring.Component):
+    csr_bus: In(csr.Signature(addr_width=2, data_width=32))
+
+    # settings, synced to mic capture domain (given by o_domain)
+    gain: Out(4)
+
+    class Gain(csr.Register):
+        gain: csr_field.RW(4)
+
+    def __init__(self, *, o_domain):
+        self._o_domain = o_domain
+
+        self._gain = self.Gain()
+
+        reg_map = csr.RegisterMap()
+        reg_map.add_register(self._gain, name="gain")
+
+        # TODO: gross and possibly illegal (is the memory map always the same?)
+        csr_sig = self.__annotations__["csr_bus"].signature
+        self._csr_bridge = csr.Bridge(reg_map, name="mic_capture",
+            addr_width=csr_sig.addr_width, data_width=csr_sig.data_width)
+        csr_sig.memory_map = self._csr_bridge.bus.memory_map
+
+        super().__init__() # initialize component and attributes from signature
+
+    def elaborate(self, platform):
+        m = Module()
+
+        # bridge containing CSRs
+        m.submodules.csr_bridge = csr_bridge = self._csr_bridge
+        connect(m, flipped(self.csr_bus), csr_bridge.bus)
+
+        m.submodules += FFSynchronizer(self._gain.f.gain.data, self.gain,
+            o_domain=self._o_domain)
+
+        return m
+
 class MicCapture(wiring.Component):
     mic_sck: Out(1) # microphone data bus
     mic_ws: Out(1)
     mic_data_raw: In(NUM_MICS//2)
+
+    # settings, synced to our domain
+    gain: In(4)
 
     samples: Out(SampleStream())
 

@@ -9,7 +9,7 @@ from amaranth_soc import csr
 from .bus import AudioRAMBus
 from .constants import MIC_FREQ_HZ, NUM_MICS
 from .cyclone_v_pll import IntelPLL
-from .mic import MicCapture, MIC_FRAME_BITS
+from .mic import MicCapture, MicCaptureRegs, MIC_FRAME_BITS
 from .stream import SampleStream, SampleStreamFIFO, SampleWriter
 
 class Blinker(wiring.Component):
@@ -53,10 +53,12 @@ class Top(wiring.Component):
         csr_sig.memory_map = self._csr_decoder.bus.memory_map
 
         self._sample_writer = SampleWriter()
+        self._mic_capture_regs = MicCaptureRegs(o_domain="mic_capture")
 
         # add subordinate buses to decoder
-        # fix address at 0 for now for program consistency
+        # fix addresses for now for program consistency
         self._csr_decoder.add(self._sample_writer.csr_bus, addr=0)
+        self._csr_decoder.add(self._mic_capture_regs.csr_bus, addr=4)
 
         super().__init__() # initialize component and attributes from signature
 
@@ -80,6 +82,12 @@ class Top(wiring.Component):
             self.mic_sck.eq(mic_capture.mic_sck),
             self.mic_ws.eq(mic_capture.mic_ws),
             mic_capture.mic_data_raw.eq(self.mic_data_raw),
+        ]
+
+        # instantiate and hook up mic capture registers
+        m.submodules.mic_capture_regs = cap_regs = self._mic_capture_regs
+        m.d.comb += [
+            mic_capture.gain.eq(cap_regs.gain),
         ]
 
         # FIFO to cross domains from mic capture
