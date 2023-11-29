@@ -152,6 +152,25 @@ class FakeMic(wiring.Component):
 
         return last & ~s
 
+# scale mic data according to gain, and clamp instead of wrapping. also
+# responsible for reducing the bit depth. currently the "scale" is just a
+# straight left shift and low bit truncate. we do it entirely combinatorially
+# because of laziness
+class GainProcessor(wiring.Component):
+    sample_in: In(signed(MIC_DATA_BITS))
+    sample_out: Out(signed(CAP_DATA_BITS))
+
+    gain: In(4)
+
+    def elaborate(self, platform):
+        m = Module()
+
+        m.d.comb += self.sample_out.eq(
+            self.sample_in[MIC_DATA_BITS-CAP_DATA_BITS:])
+
+        return m
+
+
 # separate component for CDC reasons
 class MicCaptureRegs(wiring.Component):
     csr_bus: In(csr.Signature(addr_width=2, data_width=32))
@@ -238,16 +257,14 @@ class MicCapture(wiring.Component):
                 m.d.comb += mic_data_raw[mi//2].eq(raw_outs[mi]|raw_outs[mi+1])
 
         # wire up the microphone receivers
-        def cap(s): # transform from mic sample to captured sample
-            return s[MIC_DATA_BITS-CAP_DATA_BITS:]
         sample_out = []
         sample_new = Signal()
         for mi in range(0, NUM_MICS, 2): # one receiver takes data from two mics
             mic_rx = MicDataReceiver()
             m.submodules[f"mic_rx_{mi}"] = mic_rx
 
-            sample_r = Signal(signed(CAP_DATA_BITS), name=f"mic_sample_{mi}")
-            sample_l = Signal(signed(CAP_DATA_BITS), name=f"mic_sample_{mi+1}")
+            sample_r = Signal(signed(MIC_DATA_BITS), name=f"mic_sample_{mi}")
+            sample_l = Signal(signed(MIC_DATA_BITS), name=f"mic_sample_{mi+1}")
             sample_out.extend((sample_r, sample_l))
 
             m.d.comb += [
@@ -255,8 +272,8 @@ class MicCapture(wiring.Component):
                 mic_rx.mic_data_sof_sync.eq(clk_gen.mic_data_sof_sync),
                 mic_rx.mic_data_raw.eq(mic_data_raw[mi//2]),
 
-                sample_l.eq(cap(mic_rx.sample_l)), # sample data out
-                sample_r.eq(cap(mic_rx.sample_r)),
+                sample_l.eq(mic_rx.sample_l), # sample data out
+                sample_r.eq(mic_rx.sample_r),
             ]
 
             # all mics run off the same clock so we only need to grab the new
@@ -264,9 +281,9 @@ class MicCapture(wiring.Component):
             if mi == 0:
                 m.d.comb += sample_new.eq(mic_rx.sample_new)
 
-        # shift out all microphone data in sequence
-        sample_buf = Signal(NUM_MICS*CAP_DATA_BITS)
-        m.d.comb += self.samples.data.eq(sample_buf[:CAP_DATA_BITS])
+        # shift out all microphone data in sequence through the buffer
+        sample_buf = Signal(NUM_MICS*MIC_DATA_BITS)
+        buf_out = sample_buf[:MIC_DATA_BITS] # we shift the lower bits out
 
         mic_counter = Signal(range(NUM_MICS-1))
         with m.FSM("IDLE"):
@@ -275,7 +292,7 @@ class MicCapture(wiring.Component):
                     # latch all microphone data into the sample buffer
                     for mi in range(0, NUM_MICS):
                         m.d.sync += sample_buf.word_select(
-                            mi, CAP_DATA_BITS).eq(sample_out[mi])
+                            mi, MIC_DATA_BITS).eq(sample_out[mi])
                     m.d.sync += [
                         mic_counter.eq(NUM_MICS-1), # reset output counter
                         self.samples.first.eq(1), # prime first output flag
@@ -290,13 +307,23 @@ class MicCapture(wiring.Component):
 
                     # shift out microphone data
                     m.d.sync += [
-                        sample_buf.eq(sample_buf >> CAP_DATA_BITS),
+                        sample_buf.eq(sample_buf >> MIC_DATA_BITS),
                         mic_counter.eq(mic_counter-1),
                     ]
 
                     with m.If(mic_counter == 0): # last mic
                         m.d.sync += self.samples.valid.eq(0)
                         m.next = "IDLE"
+
+        # run buffer output sample through gain processor (which is fully
+        # combinatorial) and hook it to output
+        m.submodules.gain_processor = gain_processor = GainProcessor()
+        m.d.comb += [
+            gain_processor.sample_in.eq(buf_out),
+            self.samples.data.eq(gain_processor.sample_out),
+
+            gain_processor.gain.eq(self.gain),
+        ]
 
         return m
 
