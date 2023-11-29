@@ -67,7 +67,9 @@ class Top(wiring.Component):
         m.submodules.csr_decoder = csr_decoder = csr.Decoder(
             addr_width=8, data_width=32)
         # fix address at 0 for now for program consistency
-        csr_decoder.add(writer.csr_bus, addr=0)
+        # TODO: also seems illegit
+        csr_decoder.add(writer.csr_bus.signature.create(), addr=0)
+        connect(m, flipped(self.csr_bus), csr_decoder.bus)
 
         return m
 
@@ -151,7 +153,7 @@ class FPGATop(wiring.Component):
         m.submodules.top = top = Top()
         for name, member in top.signature.members.items():
             try:
-                if isinstance(getattr(self, name), Interface):
+                if not isinstance(getattr(self, name), Signal):
                     continue
             except AttributeError:
                 continue

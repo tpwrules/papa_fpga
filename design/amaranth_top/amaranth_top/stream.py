@@ -1,6 +1,6 @@
 from amaranth import *
 from amaranth.lib import wiring, data
-from amaranth.lib.wiring import In, Out, Member, Signature
+from amaranth.lib.wiring import In, Out, Signature, connect, flipped
 from amaranth.lib.fifo import AsyncFIFO
 
 from amaranth_soc import csr
@@ -57,7 +57,7 @@ class SampleWriter(wiring.Component):
     samples_count: In(32)
 
     audio_ram: Out(AudioRAMBus())
-    csr_bus: In(csr.Signature(addr_width=2, data_width=32))
+    #csr_bus: None # filled in by constructor
 
     status: Out(3)
 
@@ -68,9 +68,9 @@ class SampleWriter(wiring.Component):
     class SysParams(csr.Register):
         # TODO: probably not the right place here for this register
         def __init__(self):
-            super().__init__(csr.FieldMap({
+            super().__init__("r", csr.FieldMap({
                 # number of microphones read by the system
-                "num_mics": csr_field.R(8, reset=NUM_MICS),
+                "num_mics": csr_field.R(8), # TODO: why doesn't this take reset?
             }))
 
     class SwapState(csr.Register):
@@ -80,22 +80,46 @@ class SampleWriter(wiring.Component):
     class SwapAddr(csr.Register):
         last_addr: csr_field.R(32) # last address in the buffer swapped from
 
+    def __init__(self):
+        self._r_test = self.Test()
+        self._r_sys_params = self.SysParams()
+        self._r_swap_state = self.SwapState()
+        self._r_swap_addr = self.SwapAddr()
+
+        r_map = csr.RegisterMap()
+        r_map.add_register(self._r_test, name="test")
+        r_map.add_register(self._r_sys_params, name="sys_params")
+        r_map.add_register(self._r_swap_state, name="swap_state")
+        r_map.add_register(self._r_swap_addr, name="swap_addr")
+        # TODO: how to avoid duplication with self.csr_bus.signature?
+        self._csr_bridge = csr.Bridge(
+            r_map, addr_width=2, data_width=32, name="sample_writer")
+
+        # TODO: is this legit? it's ugly
+        self._signature = super().signature
+        self._signature.members["csr_bus"] = \
+            In(self._csr_bridge.bus.signature.flip())
+
+        super().__init__() # initialize component and attributes
+
+    @property
+    def signature(self):
+        return self._signature
+
     def elaborate(self, platform):
         m = Module()
 
-        m.submodules.r_test = r_test = self.Test()
-        m.submodules.r_sys_params = r_sys_params = self.SysParams()
-        m.submodules.r_swap_state = r_swap_state = self.SwapState()
-        m.submodules.r_swap_addr = r_swap_addr = self.SwapAddr()
-        r_map = csr.RegisterMap()
-        r_map.add_register(r_test, name="test")
-        r_map.add_register(r_sys_params, name="sys_params")
-        r_map.add_register(r_swap_state, name="swap_state")
-        r_map.add_register(r_swap_addr, name="swap_addr")
-        # TODO: how to avoid duplication with self.csr_bus.signature?
-        m.submodules.csr_bridge = csr_bridge = csr.Bridge(
-            r_map, addr_width=2, data_width=32, name="sample_writer")
-        connect(m, self.csr_bus, csr_bridge.bus)
+        m.submodules.r_test = r_test = self._r_test
+        m.submodules.r_sys_params = r_sys_params = self._r_sys_params
+        m.submodules.r_swap_state = r_swap_state = self._r_swap_state
+        m.submodules.r_swap_addr = r_swap_addr = self._r_swap_addr
+        m.submodules.csr_bridge = csr_bridge = self._csr_bridge
+        connect(m, flipped(self.csr_bus), csr_bridge.bus)
+
+        m.d.comb += r_sys_params.f.num_mics.r_data.eq(NUM_MICS)
+
+        swap_desired = Signal() # the host desires a swap
+        m.d.comb += swap_desired.eq(r_swap_state.f.swap.data)
 
         curr_buf = Signal(1) # current buffer we're filling
         # we are swapping (swap is desired and the current FIFO word is the
@@ -109,7 +133,7 @@ class SampleWriter(wiring.Component):
         m.d.comb += self.audio_ram.data.eq(self.samples.data)
         # first flag is set and a swap is desired by the host
         m.d.comb += swapping.eq(
-            self.samples.valid & self.samples.first & r_swap_state.swap.data)
+            self.samples.valid & self.samples.first & swap_desired)
         with m.FSM("IDLE"):
             with m.State("IDLE"):
                 with m.If(self.samples_count >= BURST_BEATS): # enough data?
@@ -168,12 +192,12 @@ class SampleWriter(wiring.Component):
                             buf_addr.eq(0), # reset the address to start
 
                             # save address for host
-                            r_swap_addr.swap_addr.data.eq(buf_addr),
+                            r_swap_addr.f.last_addr.r_data.eq(buf_addr),
                             # and the buffer it's for
-                            r_swap_state.last_buf.data.eq(curr_buf),
+                            r_swap_state.f.last_buf.r_data.eq(curr_buf),
                         ]
                         # acknowledge swap
-                        m.d.comb += r_swap_state.swap.clear.eq(1)
+                        m.d.comb += r_swap_state.f.swap.clear.eq(1)
 
                     m.next = "IDLE"
 

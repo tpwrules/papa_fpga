@@ -40,11 +40,11 @@ def run_sim():
         for _ in range(3300):
             yield
 
-        yield top.register_bus.addr.eq(2*4)
-        yield top.register_bus.w_data.eq(1)
-        yield top.register_bus.w_en.eq(1)
+        yield top.csr_bus.addr.eq(2)
+        yield top.csr_bus.w_data.eq(1)
+        yield top.csr_bus.w_stb.eq(1)
         yield
-        yield top.register_bus.w_en.eq(0)
+        yield top.csr_bus.w_stb.eq(0)
         yield
 
     sim.add_sync_process(mic_proc, domain="sync")
@@ -53,7 +53,7 @@ def run_sim():
     mod_traces = []
     for name in top.signature.members.keys():
         t = getattr(top, name)
-        if not isinstance(t, Interface): mod_traces.append(t)
+        if isinstance(t, Signal): mod_traces.append(t)
 
     clk_hack = sim._fragment.domains["sync"].clk
     with sim.write_vcd("sim_top.vcd", "sim_top.gtkw",
