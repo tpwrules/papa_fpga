@@ -21,13 +21,15 @@ final: prev: {
       }));
 
       amaranth-soc = (python-prev.amaranth-soc.overrideAttrs (o: {
-        version = "unstable-2023-10-12";
+        version = "unstable-2023-11-22-pr-40";
 
         src = final.fetchFromGitHub {
           owner = "amaranth-lang";
           repo = "amaranth-soc";
-          rev = "2d3d1762d682c8ca5cb60e4a6f0ef9b764f423f2";
-          hash = "sha256-Y+o/6yasZ0qDlN7tDf+SIiPwndVpuWIweasTrWt7pU8=";
+          rev = "b814a7730d156054f871ba1cf6bfa9275eb090c7";
+          hash = "sha256-OSYsXS2HrtqofhXb+XP5zGkMg9QkZs9GZBMx+36plm4=";
+          # files change depending on github PR status
+          postFetch = "rm -f $out/.git_archival.txt $out/.gitattributes";
         };
       }));
     })
