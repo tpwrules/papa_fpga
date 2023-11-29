@@ -4,7 +4,9 @@ from amaranth.lib.wiring import In, Out, Member, Interface, connect, flipped
 from amaranth.lib.cdc import ResetSynchronizer, FFSynchronizer
 from amaranth.lib.fifo import AsyncFIFO
 
-from .bus import AudioRAMBus, RegisterBus
+from amaranth_soc import csr
+
+from .bus import AudioRAMBus
 from .constants import MIC_FREQ_HZ, NUM_MICS
 from .cyclone_v_pll import IntelPLL
 from .mic import MicCapture, MIC_FRAME_BITS
@@ -16,7 +18,7 @@ class Top(wiring.Component):
     button:     In(1)
 
     audio_ram: Out(AudioRAMBus())
-    register_bus: In(RegisterBus())
+    csr_bus: In(csr.Signature(addr_width=8, data_width=32))
 
     mic_sck: Out(1) # microphone data bus
     mic_ws: Out(1)
@@ -54,12 +56,18 @@ class Top(wiring.Component):
         m.submodules.writer = writer = SampleWriter()
         connect(m, mic_fifo.samples_r, writer.samples)
         connect(m, writer.audio_ram, flipped(self.audio_ram))
-        connect(m, flipped(self.register_bus), writer.register_bus)
         m.d.comb += [
             writer.samples_count.eq(mic_fifo.samples_count),
 
             self.status.eq(writer.status),
         ]
+
+        # decode busses for all the subordinate components
+        # TODO: how to avoid duplication with self.csr_bus.signature?
+        m.submodules.csr_decoder = csr_decoder = csr.Decoder(
+            addr_width=8, data_width=32)
+        # fix address at 0 for now for program consistency
+        csr_decoder.add(writer.csr_bus, addr=0)
 
         return m
 
@@ -206,13 +214,14 @@ class FPGATop(wiring.Component):
             self.f2h_axi_s0_rready.eq(self.f2h_axi_s0_rvalid),
         ]
 
-        # hook up register bus to Avalon-MM port
+        # hook up CSR interface to Avalon-MM port
         m.d.comb += [
-            top.register_bus.addr.eq(self.mm_bridge_fpga_m0_address),
-            top.register_bus.w_en.eq(self.mm_bridge_fpga_m0_write),
-            top.register_bus.w_data.eq(self.mm_bridge_fpga_m0_writedata),
-            top.register_bus.r_en.eq(self.mm_bridge_fpga_m0_read),
-            self.mm_bridge_fpga_m0_readdata.eq(top.register_bus.r_data),
+            # only connect word address
+            top.csr_bus.addr.eq(self.mm_bridge_fpga_m0_address[2:]),
+            top.csr_bus.w_stb.eq(self.mm_bridge_fpga_m0_write),
+            top.csr_bus.w_data.eq(self.mm_bridge_fpga_m0_writedata),
+            top.csr_bus.r_stb.eq(self.mm_bridge_fpga_m0_read),
+            self.mm_bridge_fpga_m0_readdata.eq(top.csr_bus.r_data),
         ]
         # we never need to wait
         m.d.comb += self.mm_bridge_fpga_m0_waitrequest.eq(0)

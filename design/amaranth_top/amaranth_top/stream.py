@@ -3,7 +3,10 @@ from amaranth.lib import wiring, data
 from amaranth.lib.wiring import In, Out, Member, Signature
 from amaranth.lib.fifo import AsyncFIFO
 
-from .bus import AudioRAMBus, RegisterBus
+from amaranth_soc import csr
+from amaranth_soc.csr import field as csr_field
+
+from .bus import AudioRAMBus
 from .constants import CAP_DATA_BITS, NUM_MICS
 
 # sample data in the system
@@ -54,69 +57,59 @@ class SampleWriter(wiring.Component):
     samples_count: In(32)
 
     audio_ram: Out(AudioRAMBus())
-    register_bus: In(RegisterBus())
+    csr_bus: In(csr.Signature(addr_width=2, data_width=32))
 
     status: Out(3)
+
+    class Test(csr.Register):
+        # read/write area for testing
+        test: csr_field.RW(32)
+
+    class SysParams(csr.Register):
+        # TODO: probably not the right place here for this register
+        def __init__(self):
+            super().__init__(csr.FieldMap({
+                # number of microphones read by the system
+                "num_mics": csr_field.R(8, reset=NUM_MICS),
+            }))
+
+    class SwapState(csr.Register):
+        swap: csr_field.RW1S(1) # request swap/swap status
+        last_buf: csr_field.R(1) # last buffer swapped from
+
+    class SwapAddr(csr.Register):
+        last_addr: csr_field.R(32) # last address in the buffer swapped from
 
     def elaborate(self, platform):
         m = Module()
 
-        curr_buf = Signal(1)
-        last_buf = Signal(1)
-        last_addr = Signal(32)
-        test_reg = Signal(32)
+        m.submodules.r_test = r_test = self.Test()
+        m.submodules.r_sys_params = r_sys_params = self.SysParams()
+        m.submodules.r_swap_state = r_swap_state = self.SwapState()
+        m.submodules.r_swap_addr = r_swap_addr = self.SwapAddr()
+        r_map = csr.RegisterMap()
+        r_map.add_register(r_test, name="test")
+        r_map.add_register(r_sys_params, name="sys_params")
+        r_map.add_register(r_swap_state, name="swap_state")
+        r_map.add_register(r_swap_addr, name="swap_addr")
+        # TODO: how to avoid duplication with self.csr_bus.signature?
+        m.submodules.csr_bridge = csr_bridge = csr.Bridge(
+            r_map, addr_width=2, data_width=32, name="sample_writer")
+        connect(m, self.csr_bus, csr_bridge.bus)
 
-        # the host wants to swap buffers
-        swap_desired = Signal(1)
+        curr_buf = Signal(1) # current buffer we're filling
         # we are swapping (swap is desired and the current FIFO word is the
         # start of a new set, so no more addr increments or FIFO acks)
         swapping = Signal(1)
-
-        # address 0 is read/write for testing
-        # address 1 is number of microphones, read only
-        # address 2 is read/write for swap desired on bit 0
-        #     (hardware sets to 0 when swap occurs)
-        #      read only for last buffer swapped from on bit 1
-        # address 3 is last address before the last swap
-        with m.If(self.register_bus.r_en):
-            m.d.sync += self.register_bus.r_data.eq(0) # clear out unused bits
-            with m.Switch(self.register_bus.addr[2:4]):
-                with m.Case(0):
-                    m.d.sync += self.register_bus.r_data.eq(test_reg)
-
-                with m.Case(1):
-                    m.d.sync += self.register_bus.r_data.eq(NUM_MICS)
-
-                with m.Case(2):
-                    m.d.sync += self.register_bus.r_data.eq(
-                        Cat(swap_desired, last_buf))
-
-                with m.Case(3):
-                    m.d.sync += self.register_bus.r_data.eq(last_addr)
-
-        with m.If(self.register_bus.w_en):
-            with m.Switch(self.register_bus.addr[2:4]):
-                with m.Case(0):
-                    m.d.sync += test_reg.eq(self.register_bus.w_data)
-
-                with m.Case(1):
-                    pass # read only
-
-                with m.Case(2):
-                    with m.If(self.register_bus.w_data[0]):
-                        m.d.sync += swap_desired.eq(1)
-
-                with m.Case(3):
-                    pass # read only
 
         # write words from the stream when available
         BURST_BEATS = 16
         buf_addr = Signal(23) # 8MiB buffer
         burst_counter = Signal(range(max(1, BURST_BEATS-1)))
         m.d.comb += self.audio_ram.data.eq(self.samples.data)
-        # first flag is set and a swap is desired
+        # first flag is set and a swap is desired by the host
         m.d.comb += swapping.eq(
-            self.samples.valid & self.samples.first & swap_desired)
+            self.samples.valid & self.samples.first & r_swap_state.swap.data)
         with m.FSM("IDLE"):
             with m.State("IDLE"):
                 with m.If(self.samples_count >= BURST_BEATS): # enough data?
@@ -171,12 +164,16 @@ class SampleWriter(wiring.Component):
                     # it's time to finalize the swap? then do it
                     with m.If(swapping):
                         m.d.sync += [
-                            curr_buf.eq(~curr_buf), # save next buffer
-                            last_addr.eq(buf_addr), # save address for host
-                            last_buf.eq(curr_buf), # and the buffer it's for
-                            buf_addr.eq(0), # reset buffer to start
-                            swap_desired.eq(0), # ack swap
+                            curr_buf.eq(~curr_buf), # swap to next buffer
+                            buf_addr.eq(0), # reset the address to start
+
+                            # save address for host
+                            r_swap_addr.swap_addr.data.eq(buf_addr),
+                            # and the buffer it's for
+                            r_swap_state.last_buf.data.eq(curr_buf),
                         ]
+                        # acknowledge swap
+                        m.d.comb += r_swap_state.swap.clear.eq(1)
 
                     m.next = "IDLE"
 

@@ -2,8 +2,6 @@ from amaranth import *
 from amaranth.lib import wiring, data
 from amaranth.lib.wiring import In, Out, Member, Signature
 
-from amaranth_soc import csr
-
 # rather thin wrapper around AXI
 class AudioRAMBus(Signature):
     def __init__(self):
@@ -21,20 +19,6 @@ class AudioRAMBus(Signature):
             "data_ready": In(1),
 
             "txn_done": In(1),
-        })
-
-# rather thin wrapper around Avalon-MM which pretends we're writable and
-# readable in a single cycle like BRAM
-class RegisterBus(Signature):
-    def __init__(self):
-        super().__init__({
-            "addr": Out(10), # 4KiB for now
-
-            "w_en": Out(1),
-            "w_data": Out(32),
-
-            "r_en": Out(1),
-            "r_data": In(32),
         })
 
 # intended just to always acknowledge writes, not necessarily implement a
