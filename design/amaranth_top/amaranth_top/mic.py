@@ -6,6 +6,7 @@ from amaranth.sim.core import Simulator, Delay, Settle
 
 from .constants import MIC_FREQ_HZ, NUM_MICS, USE_FAKE_MICS, CAP_DATA_BITS
 from .stream import SampleStream
+from .misc import FFDelay
 
 MIC_DATA_BITS = 24 # each word is a signed 24 bit number
 MIC_FRAME_BITS = 64 # 64 data bits per data frame from the microphone
@@ -41,8 +42,9 @@ class MicClockGenerator(wiring.Component):
 
         mic_data_sof = Signal()
         m.d.comb += mic_data_sof.eq((cycle == 0) & self.mic_sck)
-        # generate delayed start of frame pulse for input modules
-        m.submodules += FFSynchronizer(mic_data_sof, self.mic_data_sof_sync)
+        # generate delayed start of frame pulse for input modules due to the
+        # CDC delay they put on the data line
+        m.submodules += FFDelay(mic_data_sof, self.mic_data_sof_sync)
 
         return m
 
