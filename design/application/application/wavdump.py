@@ -1,6 +1,7 @@
 import sys
 import time
 import wave
+import argparse
 
 import numpy as np
 
@@ -22,15 +23,26 @@ def capture(hw, wav, channels):
         wav.writeframesraw(np.ascontiguousarray(data[:, :channels]))
         time.sleep(0.1)
 
+def parse_args():
+    parser = argparse.ArgumentParser(prog="wavdump",
+        description="Dump WAV data from mic capture interface.")
+    parser.add_argument('filename', type=str,
+        help="File to save .wav data to.")
+    parser.add_argument('-c', '--channels', type=int, metavar="N", default=2,
+        help="Number of channels to capture (from first N mics).")
+
+    return parser.parse_args()
+
 def wavdump():
-    channels = int(sys.argv[1])
-    path = sys.argv[2]
+    args = parse_args()
 
     hw = HW()
 
-    assert channels > 0 and channels <= hw.n
+    channels = args.channels
+    if channels < 1 or channels > hw.n:
+        raise ValueError(f"must be 1 <= channels <= {hw.n}")
 
-    wav = wave.open(path, "wb")
+    wav = wave.open(args.filename, "wb")
     wav.setnchannels(channels)
     wav.setsampwidth(2)
     wav.setframerate(48000)
