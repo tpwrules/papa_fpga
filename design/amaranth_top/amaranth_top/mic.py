@@ -161,13 +161,13 @@ class FakeMic(wiring.Component):
 
 # scale mic data according to gain, and clamp instead of wrapping. also
 # responsible for reducing the bit depth. currently the "scale" is just a
-# straight left shift and low bit truncate. we do it entirely combinatorially
-# because of laziness
+# straight multiplication with gain+1 (so that 0 is gain=1) and low bit
+# truncate. we do it entirely combinatorially because of laziness
 class GainProcessor(wiring.Component):
     sample_in: In(signed(MIC_DATA_BITS))
     sample_out: Out(signed(CAP_DATA_BITS))
 
-    gain: In(4)
+    gain: In(8)
 
     def elaborate(self, platform):
         m = Module()
@@ -178,7 +178,7 @@ class GainProcessor(wiring.Component):
 
         # scale by shifting according to gain
         scaled_data = Signal(signed(2*MIC_DATA_BITS))
-        m.d.comb += scaled_data.eq(self.sample_in << self.gain)
+        m.d.comb += scaled_data.eq(self.sample_in * (self.gain + 1))
 
         # remove low bits
         num_low_bits = MIC_DATA_BITS-CAP_DATA_BITS
@@ -201,11 +201,11 @@ class MicCaptureRegs(wiring.Component):
     csr_bus: In(csr.Signature(addr_width=2, data_width=32))
 
     # settings, synced to mic capture domain (given by o_domain)
-    gain: Out(4)
+    gain: Out(8)
     use_fake_mics: Out(1)
 
     class Gain(csr.Register):
-        gain: csr_field.RW(4)
+        gain: csr_field.RW(8)
 
     class FakeMics(csr.Register):
         use_fake_mics: csr_field.RW(1)
@@ -248,7 +248,7 @@ class MicCapture(wiring.Component):
     mic_data_raw: In(NUM_MICS//2)
 
     # settings, synced to our domain
-    gain: In(4)
+    gain: In(8)
     use_fake_mics: In(1)
 
     samples: Out(SampleStream())

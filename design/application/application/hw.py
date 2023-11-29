@@ -73,12 +73,7 @@ class HW:
         if gain < 1 or gain > 256:
             raise ValueError("must be 1 <= gain <= 256")
 
-        if (gain & (gain - 1)) != 0:
-            raise ValueError("gain must be a power of 2")
-
-        gain_log2 = gain.bit_length() - 1
-
-        self.r[4] = gain_log2
+        self.r[4] = gain - 1
 
     def set_use_fake_mics(self, use_fake_mics=True):
         # set whether fake mics should be used or not
