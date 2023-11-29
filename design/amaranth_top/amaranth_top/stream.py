@@ -57,7 +57,7 @@ class SampleWriter(wiring.Component):
     samples_count: In(32)
 
     audio_ram: Out(AudioRAMBus())
-    csr_bus: None # filled in by constructor
+    csr_bus: In(csr.Signature(addr_width=2, data_width=32))
 
     status: Out(3)
 
@@ -91,20 +91,14 @@ class SampleWriter(wiring.Component):
         reg_map.add_register(self._sys_params, name="sys_params")
         reg_map.add_register(self._swap_state, name="swap_state")
         reg_map.add_register(self._swap_addr, name="swap_addr")
-        self._csr_bridge = csr.Bridge(
-            reg_map, addr_width=2, data_width=32, name="sample_writer")
 
-        # TODO: is this legit? it's ugly but we can't mutate self.signature
-        # without adding our own property since it's generated fresh each time
-        self._signature = super().signature
-        self._signature.members["csr_bus"] = \
-            In(self._csr_bridge.bus.signature.flip())
+        # TODO: gross and possibly illegal (is the memory map always the same?)
+        csr_sig = self.__annotations__["csr_bus"].signature
+        self._csr_bridge = csr.Bridge(reg_map, name="sample_writer",
+            addr_width=csr_sig.addr_width, data_width=csr_sig.data_width)
+        csr_sig.memory_map = self._csr_bridge.bus.memory_map
 
         super().__init__() # initialize component and attributes from signature
-
-    @property
-    def signature(self):
-        return self._signature
 
     def elaborate(self, platform):
         m = Module()

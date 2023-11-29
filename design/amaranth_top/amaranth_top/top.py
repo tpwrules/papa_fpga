@@ -18,14 +18,18 @@ class Top(wiring.Component):
     button:     In(1)
 
     audio_ram: Out(AudioRAMBus())
-    csr_bus: None # filled in by constructor
+    csr_bus: In(csr.Signature(addr_width=8, data_width=32))
 
     mic_sck: Out(1) # microphone data bus
     mic_ws: Out(1)
     mic_data: In(NUM_MICS//2)
 
     def __init__(self):
-        self._csr_decoder = csr.Decoder(addr_width=8, data_width=32)
+        # TODO: gross and possibly illegal (is the memory map always the same?)
+        csr_sig = self.__annotations__["csr_bus"].signature
+        self._csr_decoder = csr.Decoder(
+            addr_width=csr_sig.addr_width, data_width=csr_sig.data_width)
+        csr_sig.memory_map = self._csr_decoder.bus.memory_map
 
         self._sample_writer = SampleWriter()
 
@@ -33,17 +37,7 @@ class Top(wiring.Component):
         # fix address at 0 for now for program consistency
         self._csr_decoder.add(self._sample_writer.csr_bus, addr=0)
 
-        # TODO: is this legit? it's ugly but we can't mutate self.signature
-        # without adding our own property since it's generated fresh each time
-        self._signature = super().signature
-        self._signature.members["csr_bus"] = \
-            In(self._csr_decoder.bus.signature.flip())
-
         super().__init__() # initialize component and attributes from signature
-
-    @property
-    def signature(self):
-        return self._signature
 
     def elaborate(self, platform):
         m = Module()
