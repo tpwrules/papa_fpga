@@ -103,6 +103,67 @@ class Sequencer(wiring.Component):
 
         return m
 
+# Cyclone V DSP block which does what we want and hopefully gets inferred
+# properly
+class DSPMACBlock(wiring.Component):
+    # using 18x19 mode
+
+    mul_a: In(signed(18)) # A input is 18 bits
+    mul_b: In(signed(19)) # B input is 19 bits
+    result: Out(signed(64)) # result is from 64 bit accumulator
+
+    clear: In(1) # synchronously clear the accumulator (else accumulate)
+
+    def elaborate(self, platform):
+        m = Module()
+
+        with m.If(self.clear):
+            m.d.sync += self.result.eq(0)
+        with m.Else():
+            m.d.sync += self.result.eq(self.result +
+                (self.mul_a * self.mul_b))
+
+        return m
+
+class ChannelProcessor(wiring.Component):
+    clear_accum: In(1) # if 1 then clear, else accumulate
+    curr_sample: In(signed(CAP_DATA_BITS))
+    coeff_index: In(range((NUM_TAPS * NUM_MICS)-1))
+
+    sample_out: Out(signed(CAP_DATA_BITS))
+    sample_new: Out(1) # pulsed when new sample data is available
+
+    def __init__(self, coefficients):
+        # coefficients as float values, we convert them to fixed point ourselves
+        expected_shape = (NUM_TAPS, NUM_MICS)
+        if coefficients.shape != expected_shape:
+            raise ValueError(
+                f"shape {coefficients.shape} != expected {expected_shape}")
+
+        self._coefficients = coefficients # copy already made by convolver
+
+        super().__init__()
+
+    def elaborate(self, platform):
+        m = Module()
+
+        # re-register control and data signals to improve timing
+        clear_accum = Signal.like(self.clear_accum)
+        curr_sample = Signal.like(self.curr_sample)
+        coeff_index = Signal.like(self.coeff_index)
+        m.d.sync += [
+            clear_accum.eq(self.clear_accum),
+            curr_sample.eq(self.curr_sample),
+            coeff_index.eq(self.coeff_index),
+        ]
+
+        # for now just hook input to output
+        m.d.comb += self.sample_out.eq(curr_sample)
+        with m.If(coeff_index == 0):
+            m.d.comb += self.sample_new.eq(1)
+
+        return m
+
 class Convolver(wiring.Component):
     samples_i: In(SampleStream())
     samples_i_count: In(32)
@@ -134,6 +195,63 @@ class Convolver(wiring.Component):
         m.submodules.sequencer = sequencer = Sequencer()
         connect(m, flipped(self.samples_i), sequencer.samples_i)
         m.d.comb += sequencer.samples_i_count.eq(self.samples_i_count)
+
+        # wire up channel processors
+        sample_out = []
+        sample_new = Signal()
+        for ci in range(0, NUM_CHANS):
+            processor = ChannelProcessor(self._coefficients[ci])
+            m.submodules[f"processor_{ci}"] = processor
+
+            this_sample = Signal(signed(CAP_DATA_BITS), name=f"sample_{ci}")
+            sample_out.append(this_sample)
+
+            m.d.comb += [
+                processor.clear_accum.eq(sequencer.clear_accum),
+                processor.curr_sample.eq(sequencer.curr_sample),
+                processor.coeff_index.eq(sequencer.coeff_index),
+                this_sample.eq(processor.sample_out),
+            ]
+
+            # all processors run off the same clock so we only need to grab the
+            # new sample flag from the first one
+            if ci == 0:
+                m.d.comb += sample_new.eq(processor.sample_new)
+
+        # shift out all the sample data in sequence through the buffer
+        sample_buf = Signal(NUM_CHANS*CAP_DATA_BITS)
+        # we shift the lower bits out
+        m.d.comb += self.samples_o.data.eq(sample_buf[:CAP_DATA_BITS])
+
+        chan_counter = Signal(range(NUM_CHANS-1))
+        with m.FSM("IDLE"):
+            with m.State("IDLE"):
+                with m.If(sample_new):
+                    # latch all the processed data into the sample buffer
+                    for ci in range(0, NUM_CHANS):
+                        m.d.sync += sample_buf.word_select(
+                            ci, CAP_DATA_BITS).eq(sample_out[ci])
+                    m.d.sync += [
+                        chan_counter.eq(NUM_CHANS-1), # reset output counter
+                        self.samples_o.first.eq(1), # prime first output flag
+                        self.samples_o.valid.eq(1), # notify about new samples
+                    ]
+                    m.next = "OUTPUT"
+
+            with m.State("OUTPUT"):
+                with m.If(self.samples_o.valid & self.samples_o.ready):
+                    # remaining samples are not the first
+                    m.d.sync += self.samples_o.first.eq(0)
+
+                    # shift out processed data
+                    m.d.sync += [
+                        sample_buf.eq(sample_buf >> CAP_DATA_BITS),
+                        chan_counter.eq(chan_counter-1),
+                    ]
+
+                    with m.If(chan_counter == 0): # last channel
+                        m.d.sync += self.samples_o.valid.eq(0)
+                        m.next = "IDLE"
 
         return m
 
