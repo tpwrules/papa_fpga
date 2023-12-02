@@ -8,6 +8,7 @@ pkgs.mkShell {
     (pkgs.python3.withPackages (p: [
       p.amaranth
       p.amaranth-soc
+      p.numpy
     ]))
     pkgs.yosys
 

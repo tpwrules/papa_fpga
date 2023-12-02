@@ -1,6 +1,6 @@
 { buildPythonApplication
 , setuptools
-, numpy
+, numpy-old
 }:
 
 buildPythonApplication {
@@ -12,7 +12,7 @@ buildPythonApplication {
   nativeBuildInputs = [ setuptools ];
 
   propagatedBuildInputs = [
-    numpy
+    numpy-old
   ];
 
   pythonImportsCheck = [

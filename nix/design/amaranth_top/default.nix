@@ -8,6 +8,7 @@ let
   pyEnv = python3.withPackages (p: [
     p.amaranth
     p.amaranth-soc
+    p.numpy
   ]);
 
 in stdenvNoCC.mkDerivation {
