@@ -1,6 +1,9 @@
+import math
+
 from amaranth import *
 from amaranth.lib import wiring
 from amaranth.lib.wiring import In, Out, connect, flipped
+from amaranth.utils import log2_int
 
 import numpy as np
 
@@ -8,6 +11,97 @@ from .constants import NUM_MICS, CAP_DATA_BITS, NUM_CHANS, NUM_TAPS
 from .stream import SampleStream, SampleStreamFIFO
 
 COEFF_BITS = 19 # multiplier supports 18x19 mode
+
+# generate the signals for all the channel blocks and store the sample data
+class Sequencer(wiring.Component):
+    samples_i: In(SampleStream()) # sample data to process
+    samples_i_count: In(32)
+
+    # control and data signals to processing blocks
+    clear_accum: Out(1) # if 1 then clear, else accumulate
+    curr_sample: Out(signed(CAP_DATA_BITS))
+    coeff_index: Out(range((NUM_TAPS * NUM_MICS)-1))
+
+    def elaborate(self, platform):
+        m = Module()
+
+        # control and data signals are sent to the output bus synchronously to
+        # improve timing
+        clear_accum = Signal.like(self.clear_accum)
+        curr_sample = Signal.like(self.curr_sample)
+        coeff_index = Signal.like(self.coeff_index)
+        m.d.sync += [
+            self.clear_accum.eq(clear_accum),
+            self.curr_sample.eq(curr_sample),
+            self.coeff_index.eq(coeff_index),
+        ]
+
+        # memory to store sample data
+        # storage must be a power of two so that Quartus will infer BRAM
+        mem_size = 1 << log2_int(NUM_TAPS * NUM_MICS, need_pow2=False)
+        sample_memory = Memory(width=CAP_DATA_BITS, depth=mem_size)
+        m.submodules.samp_w = samp_w = sample_memory.write_port()
+        m.submodules.samp_r = samp_r = sample_memory.read_port()
+
+        # read data is connected to the sample output and has a one cycle delay
+        m.d.comb += curr_sample.eq(samp_r.data)
+        # write data does not have a delay, but we might write what we read or
+        # we might write new data
+        write_new = Signal()
+        m.d.comb += [
+            samp_w.data.eq(Mux(write_new, self.samples_i.data, samp_r.data)),
+            self.samples_i.ready.eq(write_new),
+        ]
+
+        # main sequencer state machine
+        sample_num = Signal.like(coeff_index)
+        m.d.sync += [ # by default...
+            clear_accum.eq(1), # tell accumulators to clear themselves
+            samp_w.en.eq(0), # not writing
+        ]
+        with m.FSM("IDLE"):
+            with m.State("IDLE"):
+                with m.If(self.samples_i.valid): # at least one sample
+                    with m.If(~self.samples_i.first): # not the first sample?
+                        m.d.comb += self.samples_i.ready.eq(1) # discard it
+                    with m.Elif(self.samples_i_count >= NUM_MICS):
+                        # we have a full set of samples (so we won't ever hit an
+                        # invalid stream word) and the first sample is
+                        # correctly flagged as the first
+                        m.d.sync += sample_num.eq(0) # reset sample counter
+                        m.next = "PROCESS"
+
+            with m.State("PROCESS"):
+                # are we on the first set of mics (and need to write new data)
+                first_set = Signal()
+                m.d.comb += first_set.eq(sample_num < NUM_MICS)
+
+                # this cycle (combinatorially)
+                m.d.comb += [
+                    # read sample data
+                    samp_r.addr.eq(sample_num),
+                    samp_r.en.eq(1),
+                ]
+                # next cycle (synchronously)
+                m.d.sync += [
+                    # write sample data (first set of mics are new)
+                    write_new.eq(first_set),
+                    samp_w.addr.eq(Mux(first_set, # to the previous time block
+                        sample_num + ((NUM_TAPS-1) * NUM_MICS),
+                        sample_num - NUM_MICS)),
+                    samp_w.en.eq(1),
+
+                    # the read data will be available next cycle so update the
+                    # coefficient index and tell accumulators to stop clearing
+                    coeff_index.eq(sample_num),
+                    clear_accum.eq(0),
+                ]
+
+                m.d.sync += sample_num.eq(sample_num + 1) # next sample
+                with m.If(sample_num == (NUM_TAPS * NUM_MICS) - 1):
+                    m.next = "IDLE" # done with the sequence
+
+        return m
 
 class Convolver(wiring.Component):
     samples_i: In(SampleStream())
@@ -36,8 +130,10 @@ class Convolver(wiring.Component):
     def elaborate(self, platform):
         m = Module()
 
-        connect(m, flipped(self.samples_i), flipped(self.samples_o))
-        m.d.comb += self.samples_i.ready.eq(1)
+        # sequencer to generate sample numbers and store the data
+        m.submodules.sequencer = sequencer = Sequencer()
+        connect(m, flipped(self.samples_i), sequencer.samples_i)
+        m.d.comb += sequencer.samples_i_count.eq(self.samples_i_count)
 
         return m
 
