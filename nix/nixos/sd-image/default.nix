@@ -94,18 +94,8 @@
     }
   ];
 
-  environment.systemPackages = let
-    configure = pkgs.writeShellScriptBin "configure" ''
-      echo "Configuring FPGA..."
-      sudo mkdir -p /sys/kernel/config/device-tree/overlays/bitstream
-      # looks in /lib/firmware
-      echo -n "bitstream.dtbo" | sudo tee /sys/kernel/config/device-tree/overlays/bitstream/path
-      sleep 3 # is there a way to do this synchronously?
-      sudo ${design.application}/bin/console
-    '';
-  in with pkgs; [
+  environment.systemPackages = with pkgs; [
     dtc
-    configure
     design.application
 
     (python3.withPackages (p: [
@@ -116,6 +106,25 @@
   services.openssh = {
     enable = true;
     settings.PermitRootLogin = "yes";
+  };
+
+  systemd.services.bitstream = {
+    description = "FPGA bitstream overlay loader";
+
+    wantedBy = [
+      "multi-user.target"
+      # start when the configfs is available to trigger the overlay
+      "sys-module-configfs.device"
+    ];
+    after = [ "sys-module-configfs.device" ];
+
+    serviceConfig = {
+      ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p /sys/kernel/config/device-tree/overlays/bitstream";
+      # bitstream is pulled from /lib/firmware, we echo the current firmware path so the unit gets reloaded if the bitstream changes
+      ExecStart = "${pkgs.bash}/bin/bash -c 'echo -n bitstream.dtbo | tee /sys/kernel/config/device-tree/overlays/bitstream/path ; echo ${design.linux_firmware}'";
+      ExecStop = "${pkgs.coreutils}/bin/rmdir /sys/kernel/config/device-tree/overlays/bitstream/";
+      RemainAfterExit = "yes";
+    };
   };
 
   # save space and compilation time. might revise?
