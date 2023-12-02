@@ -193,9 +193,12 @@ class FPGATop(wiring.Component):
         m.d.comb += sync.clk.eq(self.clk50)
         m.submodules.main_pll = main_pll = IntelPLL("50 MHz")
 
+        # hook up another PLL for the convolver so the ratios work out
+        m.submodules.conv_pll = conv_pll = IntelPLL("50 MHz")
+
         # hold whole design in reset until PLL is locked
         reset = Signal()
-        m.d.comb += reset.eq(self.rst & main_pll.o_locked)
+        m.d.comb += reset.eq(self.rst & main_pll.o_locked & conv_pll.o_locked)
         m.submodules += ResetSynchronizer(reset)
 
         # set up mic capture domain
@@ -205,11 +208,14 @@ class FPGATop(wiring.Component):
             main_pll.add_output(f"{mic_capture_freq} Hz"))
         m.submodules += ResetSynchronizer(reset, domain="mic_capture")
 
-        # set up the convolver domain domain
+        # set up the convolver domain
         convolver_freq = MIC_FREQ_HZ * Convolver.REL_FREQ
+        # round up to the next multiple of 1MHz so the PLL ratios will be
+        # realizable and Quartus won't explode
+        convolver_freq = ((convolver_freq//1e6)+1)*1e6
         m.domains.convolver = convolver = ClockDomain()
         m.d.comb += convolver.clk.eq(
-            main_pll.add_output(f"{convolver_freq} Hz"))
+            conv_pll.add_output(f"{convolver_freq} Hz"))
         m.submodules += ResetSynchronizer(reset, domain="convolver")
 
         # wire up top module

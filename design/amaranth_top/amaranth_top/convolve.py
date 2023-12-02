@@ -198,9 +198,10 @@ class Convolver(wiring.Component):
 
     # frequency relative to the microphone sample frequency (i.e. multiply that
     # by this to get the expected operation frequency)
-    # for each sample frequency we need to process all taps and all mics, so we
-    # do that, plus 1% more to be sure we're always ahead of capture
-    REL_FREQ = int(NUM_MICS * NUM_TAPS * 1.01)
+    # for each sample frequency we need to process all taps and all mics then
+    # clear the accumulators, so we do that, plus 1% more to be sure we're
+    # always ahead of capture
+    REL_FREQ = int(((NUM_MICS * NUM_TAPS)+1)*1.01)
 
     def __init__(self, coefficients):
         # coefficients as float values, we convert them to fixed point ourselves
