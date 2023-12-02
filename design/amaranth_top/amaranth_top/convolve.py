@@ -140,7 +140,9 @@ class ChannelProcessor(wiring.Component):
             raise ValueError(
                 f"shape {coefficients.shape} != expected {expected_shape}")
 
-        self._coefficients = coefficients # copy already made by convolver
+        # hack for testing porpoises
+        self._trunc_bits = 0
+        self._coeff_rom_data = [int(v) for v in coefficients.reshape(-1)]
 
         super().__init__()
 
@@ -157,10 +159,32 @@ class ChannelProcessor(wiring.Component):
             coeff_index.eq(self.coeff_index),
         ]
 
-        # for now just hook input to output
-        m.d.comb += self.sample_out.eq(curr_sample)
-        with m.If(coeff_index == 0):
-            m.d.comb += self.sample_new.eq(1)
+        # RAM to hold coefficients
+        mem_size = 1 << log2_int(NUM_TAPS * NUM_MICS, need_pow2=False)
+        coeff_memory = Memory(
+            width=COEFF_BITS, depth=mem_size, init=self._coeff_rom_data)
+        m.submodules.coeff_r = coeff_r = coeff_memory.read_port()
+        m.d.comb += [
+            coeff_r.en.eq(1), # always reading
+            coeff_r.addr.eq(coeff_index), # from the given index
+        ]
+
+        # set up DSP block to do our multiply-accumulate
+        m.submodules.mac = mac = DSPMACBlock()
+        # memory delays by one cycle and we put the coefficient in the B port
+        # since that's one bit wider and we want that extra bit
+        m.d.sync += mac.mul_a.eq(curr_sample)
+        m.d.comb += mac.mul_b.eq(coeff_r.data)
+        # clear is in effect synchronous since we are using that to delay
+        m.d.sync += mac.clear.eq(clear_accum)
+
+        # hook up (truncated) output
+        m.d.comb += self.sample_out.eq(mac.result[self._trunc_bits:])
+        # and synchronized new flag (which is the cycle the clear input of the
+        # accumulator is asserted)
+        sample_new = Signal()
+        m.d.comb += sample_new.eq(~mac.clear & clear_accum)
+        m.d.sync += self.sample_new.eq(sample_new)
 
         return m
 
