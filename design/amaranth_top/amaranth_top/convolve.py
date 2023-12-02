@@ -41,7 +41,8 @@ class Sequencer(wiring.Component):
         mem_size = 1 << log2_int(NUM_TAPS * NUM_MICS, need_pow2=False)
         sample_memory = Memory(width=CAP_DATA_BITS, depth=mem_size)
         m.submodules.samp_w = samp_w = sample_memory.write_port()
-        m.submodules.samp_r = samp_r = sample_memory.read_port()
+        m.submodules.samp_r = samp_r = sample_memory.read_port(
+            transparent=False)
 
         # read data is connected to the sample output and has a one cycle delay
         m.d.comb += curr_sample.eq(samp_r.data)
@@ -163,7 +164,8 @@ class ChannelProcessor(wiring.Component):
         mem_size = 1 << log2_int(NUM_TAPS * NUM_MICS, need_pow2=False)
         coeff_memory = Memory(
             width=COEFF_BITS, depth=mem_size, init=self._coeff_rom_data)
-        m.submodules.coeff_r = coeff_r = coeff_memory.read_port()
+        m.submodules.coeff_r = coeff_r = coeff_memory.read_port(
+            transparent=False)
         m.d.comb += [
             coeff_r.en.eq(1), # always reading
             coeff_r.addr.eq(coeff_index), # from the given index
