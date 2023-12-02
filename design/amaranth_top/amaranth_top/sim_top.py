@@ -5,6 +5,7 @@ from amaranth.sim.core import Simulator, Delay, Settle
 from .top import Top
 from .constants import MIC_FREQ_HZ
 from .mic import MicCapture
+from .convolve import Convolver
 from .bus import FakeAudioRAMBusWriteReceiver
 
 class SimTop(Elaboratable):
@@ -27,6 +28,7 @@ def run_sim():
     sim = Simulator(sim_top)
     sim.add_clock(1/50e6, domain="sync")
     sim.add_clock(1/(MIC_FREQ_HZ*MicCapture.REL_FREQ), domain="mic_capture")
+    sim.add_clock(1/(MIC_FREQ_HZ*Convolver.REL_FREQ), domain="convolver")
 
     # feed some data to the mic after a bit
     def mic_proc():

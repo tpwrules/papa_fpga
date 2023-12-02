@@ -6,10 +6,13 @@ from amaranth.lib.fifo import AsyncFIFO
 
 from amaranth_soc import csr
 
+import numpy as np
+
 from .bus import AudioRAMBus
-from .constants import MIC_FREQ_HZ, NUM_MICS
+from .constants import MIC_FREQ_HZ, NUM_TAPS, NUM_MICS, NUM_CHANS
 from .cyclone_v_pll import IntelPLL
 from .mic import MicCapture, MicCaptureRegs
+from .convolve import Convolver
 from .stream import SampleStream, SampleStreamFIFO, SampleWriter
 
 class Blinker(wiring.Component):
@@ -91,17 +94,36 @@ class Top(wiring.Component):
             mic_capture.use_fake_mics.eq(cap_regs.use_fake_mics)
         ]
 
-        # FIFO to cross domains from mic capture
+        # FIFO to cross domains from mic capture to the convolver
         m.submodules.mic_fifo = mic_fifo = \
-            SampleStreamFIFO(w_domain="mic_capture")
+            SampleStreamFIFO(w_domain="mic_capture", r_domain="convolver")
         connect(m, mic_capture.samples, mic_fifo.samples_w)
+
+        # for now generate coefficients that just copy the output to the input
+        coefficients = np.zeros((NUM_CHANS, NUM_TAPS, NUM_MICS),
+            dtype=np.float64)
+        for x in range(NUM_CHANS):
+            # for the most recent time, use mic x to get the output for chan x
+            # and all others use 0
+            coefficients[x, -1, x] = 1
+
+        # instantiate convolver in its domain
+        m.submodules.convolver = convolver = \
+            DomainRenamer("convolver")(Convolver(coefficients))
+        connect(m, mic_fifo.samples_r, convolver.samples_i)
+        m.d.comb += convolver.samples_i_count.eq(mic_fifo.samples_count)
+
+        # FIFO to cross domains from convolver to the writer
+        m.submodules.conv_fifo = conv_fifo = \
+            SampleStreamFIFO(w_domain="convolver")
+        connect(m, convolver.samples_o, conv_fifo.samples_w)
 
         # writer to save sample data to memory
         m.submodules.sample_writer = sample_writer = self._sample_writer
-        connect(m, mic_fifo.samples_r, sample_writer.samples)
+        connect(m, conv_fifo.samples_r, sample_writer.samples)
         connect(m, sample_writer.audio_ram, flipped(self.audio_ram))
         m.d.comb += [
-            sample_writer.samples_count.eq(mic_fifo.samples_count),
+            sample_writer.samples_count.eq(conv_fifo.samples_count),
 
             self.status_leds.eq(sample_writer.status_leds),
         ]
@@ -182,6 +204,13 @@ class FPGATop(wiring.Component):
         m.d.comb += mic_capture.clk.eq(
             main_pll.add_output(f"{mic_capture_freq} Hz"))
         m.submodules += ResetSynchronizer(reset, domain="mic_capture")
+
+        # set up the convolver domain domain
+        convolver_freq = MIC_FREQ_HZ * Convolver.REL_FREQ
+        m.domains.convolver = convolver = ClockDomain()
+        m.d.comb += convolver.clk.eq(
+            main_pll.add_output(f"{convolver_freq} Hz"))
+        m.submodules += ResetSynchronizer(reset, domain="convolver")
 
         # wire up top module
         m.submodules.top = top = Top()
