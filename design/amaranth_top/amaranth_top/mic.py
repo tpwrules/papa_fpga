@@ -7,7 +7,7 @@ from amaranth.sim.core import Simulator, Delay, Settle
 from amaranth_soc import csr
 from amaranth_soc.csr import field as csr_field
 
-from .constants import MIC_FREQ_HZ, NUM_MICS, CAP_DATA_BITS
+from .constants import NUM_MICS, CAP_DATA_BITS
 from .stream import SampleStream
 from .misc import FFDelay
 
@@ -253,6 +253,11 @@ class MicCapture(wiring.Component):
 
     samples: Out(SampleStream())
 
+    # frequency relative to the microphone sample frequency (i.e. multiply that
+    # by this to get the expected operation frequency)
+    # generated bit clock is half the module clock so we need to double
+    REL_FREQ = 2*MIC_FRAME_BITS
+
     def elaborate(self, platform):
         m = Module()
 
@@ -403,9 +408,11 @@ class MicDemo(wiring.Component):
         return m
 
 def demo():
+    from .constants import MIC_FREQ_HZ
+
     top = MicDemo()
     sim = Simulator(top)
-    sim.add_clock(1/(2*MIC_FREQ_HZ*MIC_FRAME_BITS), domain="sync")
+    sim.add_clock(1/(MIC_FREQ_HZ*MicCapture.REL_FREQ), domain="sync")
 
     mod_traces = []
     for name in top.signature.members.keys():

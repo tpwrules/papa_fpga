@@ -9,7 +9,7 @@ from amaranth_soc import csr
 from .bus import AudioRAMBus
 from .constants import MIC_FREQ_HZ, NUM_MICS
 from .cyclone_v_pll import IntelPLL
-from .mic import MicCapture, MicCaptureRegs, MIC_FRAME_BITS
+from .mic import MicCapture, MicCaptureRegs
 from .stream import SampleStream, SampleStreamFIFO, SampleWriter
 
 class Blinker(wiring.Component):
@@ -177,8 +177,7 @@ class FPGATop(wiring.Component):
         m.submodules += ResetSynchronizer(reset)
 
         # set up mic capture domain
-        # frequency is doubled from microphone data rate
-        mic_capture_freq = 2*MIC_FREQ_HZ*MIC_FRAME_BITS
+        mic_capture_freq = MIC_FREQ_HZ * MicCapture.REL_FREQ
         m.domains.mic_capture = mic_capture = ClockDomain()
         m.d.comb += mic_capture.clk.eq(
             main_pll.add_output(f"{mic_capture_freq} Hz"))
