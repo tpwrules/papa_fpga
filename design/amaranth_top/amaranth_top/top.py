@@ -1,3 +1,5 @@
+import pathlib
+
 from amaranth import *
 from amaranth.lib import wiring, data
 from amaranth.lib.wiring import In, Out, Member, Interface, connect, flipped
@@ -99,12 +101,10 @@ class Top(wiring.Component):
             SampleStreamFIFO(w_domain="mic_capture", r_domain="convolver")
         connect(m, mic_capture.samples, mic_fifo.samples_w)
 
-        # for now generate coefficients that just copy the output to the input
-        coefficients = np.zeros((NUM_CHANS, NUM_TAPS, NUM_MICS),
-            dtype=np.float64)
-        for x in range(min(NUM_MICS, NUM_CHANS)):
-            # make each output channel an average of all the input mics
-            coefficients[x, -1, :] = 1
+        # load prepared coefficient data
+        coeff_path = pathlib.Path(__file__).parent/"coefficients.txt"
+        coefficients = np.loadtxt(coeff_path)
+        coefficients = coefficients.reshape(NUM_CHANS, NUM_TAPS, NUM_MICS)
 
         # instantiate convolver in its domain
         m.submodules.convolver = convolver = \

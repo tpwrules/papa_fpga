@@ -18,6 +18,7 @@ in stdenvNoCC.mkDerivation {
   src = lib.sources.sourceByRegex ./../../../design/amaranth_top [
     "amaranth_top"
     ".*/[^/]*\.py$"
+    ".*/[^/]*\.txt$"
   ];
 
   nativeBuildInputs = [ pyEnv yosys ];
