@@ -9,3 +9,4 @@ version = "0.0.1"
 [project.scripts]
 wavdump = "application.wavdump:wavdump"
 console = "application.console:console"
+server = "application.server:server"

@@ -133,6 +133,9 @@
     };
   };
 
+  # uncomplicate using the server
+  networking.firewall.enable = false;
+
   # save space and compilation time. might revise?
   hardware.enableAllFirmware = lib.mkForce false;
   hardware.enableRedistributableFirmware = lib.mkForce false;
