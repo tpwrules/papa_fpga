@@ -141,8 +141,36 @@ class ChannelProcessor(wiring.Component):
             raise ValueError(
                 f"shape {coefficients.shape} != expected {expected_shape}")
 
-        # hack for testing porpoises
-        self._trunc_bits = 0
+        assert CAP_DATA_BITS <= 18 # DSP A input
+        assert COEFF_BITS <= 19 # DSP B input
+
+        # coefficients are all -1 to 1 and the sum of the coefficients is
+        # (just about) exactly 1. we need 2 integer bits for the coefficients,
+        # 1 for sign and 1 to accommodate coefficients just slightly more than
+        # abs(1). the rest we can make fraction bits. the input and output data
+        # we treat as fully integer
+        coeff_frac_bits = COEFF_BITS-2
+        # we want the output to be integral so we throw away that number of bits
+        # from the result as well
+        self._trunc_bits = coeff_frac_bits
+
+        # multiplication of CAP_DATA_BITS.0 * 2.COEFF_BITS-2 equals
+        # (CAP_DATA_BITS+2).(COEFF_BITS-2) or a total bit quantity of
+        # CAP_DATA_BITS+COEFF_BITS. we intend to sum NUM_TAPS*NUM_MICS
+        # of them, so we need enough bits for that too
+        total_bits = CAP_DATA_BITS + COEFF_BITS + \
+            log2_int(NUM_TAPS * NUM_MICS, need_pow2=False)
+        assert total_bits <= 64 # accumulator size
+
+        # convert coefficients to signed fixed point with the given number of
+        # fractional bits
+        coefficients = (coefficients * (1 << coeff_frac_bits)).astype(np.int64)
+        # make sure they're all in range
+        assert np.all(np.abs(coefficients) < (1 << (COEFF_BITS-1)))
+        # mask to convert to unsigned values
+        coefficients &= (1 << COEFF_BITS)-1
+
+        # save as a list for Amaranth
         self._coeff_rom_data = [int(v) for v in coefficients.reshape(-1)]
 
         super().__init__()
