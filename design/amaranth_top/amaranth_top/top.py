@@ -102,7 +102,7 @@ class Top(wiring.Component):
         # for now generate coefficients that just copy the output to the input
         coefficients = np.zeros((NUM_CHANS, NUM_TAPS, NUM_MICS),
             dtype=np.float64)
-        for x in range(NUM_CHANS):
+        for x in range(min(NUM_MICS, NUM_CHANS)):
             # for the most recent time, use mic x to get the output for chan x
             # and all others use 0
             coefficients[x, -1, x] = 1

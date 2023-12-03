@@ -7,7 +7,7 @@ from amaranth_soc import csr
 from amaranth_soc.csr import field as csr_field
 
 from .bus import AudioRAMBus
-from .constants import CAP_DATA_BITS, NUM_MICS
+from .constants import CAP_DATA_BITS, NUM_CHANS
 
 # sample data in the system
 class SampleStream(Signature):
@@ -107,7 +107,7 @@ class SampleWriter(wiring.Component):
         m.submodules.csr_bridge = csr_bridge = self._csr_bridge
         connect(m, flipped(self.csr_bus), csr_bridge.bus)
 
-        m.d.comb += self._sys_params.f.num_mics.r_data.eq(NUM_MICS)
+        m.d.comb += self._sys_params.f.num_mics.r_data.eq(NUM_CHANS)
 
         swap_desired = Signal() # the host desires a swap
         m.d.comb += swap_desired.eq(self._swap_state.f.swap.data)
