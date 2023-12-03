@@ -28,12 +28,15 @@ def parse_args():
         description="Dump WAV data from mic capture interface.")
     parser.add_argument('filename', type=str,
         help="File to save .wav data to.")
-    parser.add_argument('-c', '--channels', type=int, metavar="N", default=2,
-        help="Number of channels to capture (from first N mics).")
+    parser.add_argument('-c', '--channels', type=int, metavar="N", default=None,
+        help="Number of channels to capture (from first N mics/channels), "
+             "default all available.")
     parser.add_argument('-g', '--gain', type=int, default=1,
-        help="Gain value to multiply microphone data by.")
+        help="Gain value to multiply microphone data by, default 1.")
     parser.add_argument('-f', '--fake', action="store_true",
         help="Capture from fake microphones instead of real ones.")
+    parser.add_argument('-r', '--raw', action="store_true",
+        help="Store raw mic data instead of convolved output channels.")
 
     return parser.parse_args()
 
@@ -41,17 +44,23 @@ def wavdump():
     args = parse_args()
 
     hw = HW()
+    print(f"capture frequency is {hw.mic_freq_hz}Hz")
+
     hw.set_gain(args.gain)
     hw.set_use_fake_mics(args.fake)
+    hw.set_store_raw_data(args.raw)
 
     channels = args.channels
-    if channels < 1 or channels > hw.n:
-        raise ValueError(f"must be 1 <= channels <= {hw.n}")
+    max_channels = hw.num_mics if args.raw else hw.num_chans
+    if channels is None:
+        channels = max_channels
+    if channels < 1 or channels > max_channels:
+        raise ValueError(f"must be 1 <= channels <= {max_channels}")
 
     wav = wave.open(args.filename, "wb")
     wav.setnchannels(channels)
     wav.setsampwidth(2)
-    wav.setframerate(48000)
+    wav.setframerate(hw.mic_freq_hz)
 
     try:
         capture(hw, wav, channels)

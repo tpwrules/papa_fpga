@@ -64,6 +64,13 @@ def run_sim():
         # request an increase in gain
         yield from write(4, 1)
 
+        for _ in range(2048):
+            yield
+
+        # request to write raw mic data
+        yield from write(4, 0) # and turn gain back down to see that accurately
+        yield from write(10, 1)
+
     sim.add_sync_process(mic_proc, domain="sync")
     sim.add_sync_process(reg_proc, domain="sync")
 
@@ -75,7 +82,7 @@ def run_sim():
     clk_hack = sim._fragment.domains["sync"].clk
     with sim.write_vcd("sim_top.vcd", "sim_top.gtkw",
             traces=[clk_hack, *mod_traces]):
-        sim.run_until((1/MIC_FREQ_HZ)*8, run_passive=True)
+        sim.run_until((1/MIC_FREQ_HZ)*16, run_passive=True)
 
 if __name__ == "__main__":
     run_sim()

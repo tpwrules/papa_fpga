@@ -38,6 +38,8 @@ class Blinker(Component):
 class SystemRegs(Component):
     csr_bus: In(csr.Signature(addr_width=2, data_width=32))
 
+    store_raw_data: Out(1)
+
     class SysParams1(csr.Register):
         # TODO: use reset value once that's supported
         num_mics: csr_field.R(8)
@@ -48,13 +50,20 @@ class SystemRegs(Component):
         # TODO: use reset value once that's supported
         mic_freq_hz: csr_field.R(16)
 
+    class RawDataCtrl(csr.Register):
+        # 1 to store raw mic data, 0 to store convolved data. the switch is
+        # nowhere near clean
+        store_raw_data: csr_field.RW(1)
+
     def __init__(self):
         self._sys_params_1 = self.SysParams1()
         self._sys_params_2 = self.SysParams2()
+        self._raw_data_ctrl = self.RawDataCtrl()
 
         reg_map = csr.RegisterMap()
         reg_map.add_register(self._sys_params_1, name="sys_params_1")
         reg_map.add_register(self._sys_params_2, name="sys_params_2")
+        reg_map.add_register(self._raw_data_ctrl, name="raw_data_ctrl")
 
         # TODO: gross and possibly illegal (is the memory map always the same?)
         csr_sig = self.__annotations__["csr_bus"].signature
@@ -77,6 +86,11 @@ class SystemRegs(Component):
             self._sys_params_1.f.num_chans.r_data.eq(NUM_CHANS),
             self._sys_params_1.f.num_taps.r_data.eq(NUM_TAPS),
             self._sys_params_2.f.mic_freq_hz.r_data.eq(MIC_FREQ_HZ),
+        ]
+
+        # forward register values
+        m.d.sync += [
+            self.store_raw_data.eq(self._raw_data_ctrl.f.store_raw_data.data)
         ]
 
         return m
@@ -127,7 +141,7 @@ class Top(Component):
         connect(m, flipped(self.csr_bus), self._csr_decoder.bus)
 
         # hook up system registers
-        m.submodules.system_regs = self._system_regs
+        m.submodules.system_regs = system_regs = self._system_regs
 
         # instantiate mic capture unit in its domain
         m.submodules.mic_capture = mic_capture = \
@@ -145,9 +159,9 @@ class Top(Component):
             mic_capture.use_fake_mics.eq(cap_regs.use_fake_mics)
         ]
 
-        # FIFO to cross domains from mic capture to the convolver
+        # FIFO to cross domains from mic capture
         m.submodules.mic_fifo = mic_fifo = \
-            SampleStreamFIFO(w_domain="mic_capture", r_domain="convolver")
+            SampleStreamFIFO(w_domain="mic_capture")
         connect(m, mic_capture.samples, mic_fifo.samples_w)
 
         # load prepared coefficient data
@@ -155,25 +169,36 @@ class Top(Component):
         coefficients = np.loadtxt(coeff_path)
         coefficients = coefficients.reshape(NUM_CHANS, NUM_TAPS, NUM_MICS)
 
+        # FIFO to cross domains to the convolver
+        m.submodules.conv_i_fifo = conv_i_fifo = \
+            SampleStreamFIFO(w_domain="sync", r_domain="convolver")
+
         # instantiate convolver in its domain
         m.submodules.convolver = convolver = \
             DomainRenamer("convolver")(Convolver(coefficients))
-        connect(m, mic_fifo.samples_r, convolver.samples_i)
-        m.d.comb += convolver.samples_i_count.eq(mic_fifo.samples_count)
+        connect(m, conv_i_fifo.samples_r, convolver.samples_i)
+        m.d.comb += convolver.samples_i_count.eq(conv_i_fifo.samples_count)
 
         # FIFO to cross domains from convolver to the writer
-        m.submodules.conv_fifo = conv_fifo = \
+        m.submodules.conv_o_fifo = conv_o_fifo = \
             SampleStreamFIFO(w_domain="convolver")
-        connect(m, convolver.samples_o, conv_fifo.samples_w)
+        connect(m, convolver.samples_o, conv_o_fifo.samples_w)
 
         # writer to save sample data to memory
         m.submodules.sample_writer = sample_writer = self._sample_writer
-        connect(m, conv_fifo.samples_r, sample_writer.samples)
         connect(m, sample_writer.audio_ram, flipped(self.audio_ram))
-        m.d.comb += [
-            sample_writer.samples_count.eq(conv_fifo.samples_count),
+        m.d.comb += self.status_leds.eq(sample_writer.status_leds)
 
-            self.status_leds.eq(sample_writer.status_leds),
-        ]
+        # switch between saving raw sample data and convolved data
+        with m.If(system_regs.store_raw_data):
+            # connect mic fifo directly to sample writer
+            connect(m, mic_fifo.samples_r, sample_writer.samples)
+            m.d.comb += sample_writer.samples_count.eq(mic_fifo.samples_count)
+        with m.Else():
+            # run mic data through convolver
+            connect(m, mic_fifo.samples_r, conv_i_fifo.samples_w)
+            connect(m, conv_o_fifo.samples_r, sample_writer.samples)
+            m.d.comb += sample_writer.samples_count.eq(
+                conv_o_fifo.samples_count)
 
         return m

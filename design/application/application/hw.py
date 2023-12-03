@@ -1,5 +1,6 @@
 import os
 import mmap
+import time
 
 import numpy as np
 
@@ -41,8 +42,15 @@ class HW:
         if self.r[0] != val:
             raise ValueError("test register not responding")
 
-        # read number of microphones
-        self.n = (int(self.r[8]) >> 8) & 0xFF
+        # read system parameters
+        p1 = int(self.r[8])
+        p2 = int(self.r[9])
+        self.num_mics = p1 & 0xFF
+        self.num_chans = (p1 >> 8) & 0xFF
+        self.num_taps = (p1 >> 16) & 0xFF
+        self.mic_freq_hz = p2 & 0xFFFF
+
+        self._store_raw_data = bool(self.r[10]) # need to know for data shape
 
         # wait for any existing buffer swap to have completed
         while self.r[2] & 1: pass
@@ -64,7 +72,8 @@ class HW:
         which_buf, buf_pos = self.swap_buffers()
         buf_pos >>= 1 # convert from bytes to words
 
-        return self.d[which_buf, :buf_pos].reshape(-1, self.n)
+        dim = self.num_mics if self._store_raw_data else self.num_chans
+        return self.d[which_buf, :buf_pos].reshape(-1, dim)
 
     def set_gain(self, gain):
         # set the value to multiply the microphone data by (i.e. gain)
@@ -79,6 +88,18 @@ class HW:
         # set whether fake mics should be used or not
 
         self.r[5] = 1 if use_fake_mics else 0
+
+    def set_store_raw_data(self, store_raw_data=True, wait=True):
+        # set whether to store raw data or not
+
+        self._store_raw_data = bool(store_raw_data)
+        self.r[10] = int(self._store_raw_data)
+
+        if wait:
+            # wait enough time for the switch to happen and data to be processed
+            # so everything is current, then discard the in-between stuff
+            time.sleep((1/self.mic_freq_hz) * (self.num_taps + 10))
+            self.swap_buffers()
 
     def close(self):
         if self._closed:
