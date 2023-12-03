@@ -110,33 +110,41 @@ wire                fpga_clk_50;
 // connection of internal logics
 assign fpga_clk_50 = FPGA_CLK1_50;
 
-wire [6:0]  f2h_axi_s0_awid                       ;//                     f2h_axi_s0.awid
+wire [7:0]  f2h_axi_s0_awid                       ;//                     f2h_axi_s0.awid
 wire [31:0] f2h_axi_s0_awaddr                     ;//                               .awaddr
-wire [7:0]  f2h_axi_s0_awlen                      ;//                               .awlen
+wire [3:0]  f2h_axi_s0_awlen                      ;//                               .awlen
 wire [2:0]  f2h_axi_s0_awsize                     ;//                               .awsize
 wire [1:0]  f2h_axi_s0_awburst                    ;//                               .awburst
+wire [1:0]  f2h_axi_s0_awlock                     ;//                               .awlock
 wire [3:0]  f2h_axi_s0_awcache                    ;//                               .awcache
-wire [63:0] f2h_axi_s0_awuser                     ;//                               .awuser
+wire [2:0]  f2h_axi_s0_awprot                     ;//                               .awprot
 wire        f2h_axi_s0_awvalid                    ;//                               .awvalid
 wire        f2h_axi_s0_awready                    ;//                               .awready
+wire [4:0]  f2h_axi_s0_awuser                     ;//                               .awuser
+wire [7:0]  f2h_axi_s0_wid                        ;//                               .wid
 wire [31:0] f2h_axi_s0_wdata                      ;//                               .wdata
 wire [3:0]  f2h_axi_s0_wstrb                      ;//                               .wstrb
 wire        f2h_axi_s0_wlast                      ;//                               .wlast
 wire        f2h_axi_s0_wvalid                     ;//                               .wvalid
 wire        f2h_axi_s0_wready                     ;//                               .wready
-wire [6:0]  f2h_axi_s0_bid                        ;//                               .bid
+wire [7:0]  f2h_axi_s0_bid                        ;//                               .bid
 wire [1:0]  f2h_axi_s0_bresp                      ;//                               .bresp
 wire        f2h_axi_s0_bvalid                     ;//                               .bvalid
 wire        f2h_axi_s0_bready                     ;//                               .bready
-wire [6:0]  f2h_axi_s0_arid                       ;//                               .arid
+wire [7:0]  f2h_axi_s0_arid                       ;//                               .arid
 wire [31:0] f2h_axi_s0_araddr                     ;//                               .araddr
-wire [7:0]  f2h_axi_s0_arlen                      ;//                               .arlen
+wire [3:0]  f2h_axi_s0_arlen                      ;//                               .arlen
 wire [2:0]  f2h_axi_s0_arsize                     ;//                               .arsize
 wire [1:0]  f2h_axi_s0_arburst                    ;//                               .arburst
+wire [1:0]  f2h_axi_s0_arlock                     ;//                               .arlock
+wire [3:0]  f2h_axi_s0_arcache                    ;//                               .arcache
+wire [2:0]  f2h_axi_s0_arprot                     ;//                               .arprot
 wire        f2h_axi_s0_arvalid                    ;//                               .arvalid
 wire        f2h_axi_s0_arready                    ;//                               .arready
-wire [6:0]  f2h_axi_s0_rid                        ;//                               .rid
+wire [4:0]  f2h_axi_s0_aruser                     ;//                               .aruser
+wire [7:0]  f2h_axi_s0_rid                        ;//                               .rid
 wire [31:0] f2h_axi_s0_rdata                      ;//                               .rdata
+wire [1:0]  f2h_axi_s0_rresp                      ;//                               .rresp
 wire        f2h_axi_s0_rlast                      ;//                               .rlast
 wire        f2h_axi_s0_rvalid                     ;//                               .rvalid
 wire        f2h_axi_s0_rready                     ;//                               .rready
@@ -244,10 +252,13 @@ soc_system u0(
                .f2h_axi_s0_awlen(f2h_axi_s0_awlen),
                .f2h_axi_s0_awsize(f2h_axi_s0_awsize),
                .f2h_axi_s0_awburst(f2h_axi_s0_awburst),
+               .f2h_axi_s0_awlock(f2h_axi_s0_awlock),
                .f2h_axi_s0_awcache(f2h_axi_s0_awcache),
-               .f2h_axi_s0_awuser(f2h_axi_s0_awuser),
+               .f2h_axi_s0_awprot(f2h_axi_s0_awprot),
                .f2h_axi_s0_awvalid(f2h_axi_s0_awvalid),
                .f2h_axi_s0_awready(f2h_axi_s0_awready),
+               .f2h_axi_s0_awuser(f2h_axi_s0_awuser),
+               .f2h_axi_s0_wid(f2h_axi_s0_wid),
                .f2h_axi_s0_wdata(f2h_axi_s0_wdata),
                .f2h_axi_s0_wstrb(f2h_axi_s0_wstrb),
                .f2h_axi_s0_wlast(f2h_axi_s0_wlast),
@@ -262,10 +273,15 @@ soc_system u0(
                .f2h_axi_s0_arlen(f2h_axi_s0_arlen),
                .f2h_axi_s0_arsize(f2h_axi_s0_arsize),
                .f2h_axi_s0_arburst(f2h_axi_s0_arburst),
+               .f2h_axi_s0_arlock(f2h_axi_s0_arlock),
+               .f2h_axi_s0_arcache(f2h_axi_s0_arcache),
+               .f2h_axi_s0_arprot(f2h_axi_s0_arprot),
                .f2h_axi_s0_arvalid(f2h_axi_s0_arvalid),
                .f2h_axi_s0_arready(f2h_axi_s0_arready),
+               .f2h_axi_s0_aruser(f2h_axi_s0_aruser),
                .f2h_axi_s0_rid(f2h_axi_s0_rid),
                .f2h_axi_s0_rdata(f2h_axi_s0_rdata),
+               .f2h_axi_s0_rresp(f2h_axi_s0_rresp),
                .f2h_axi_s0_rlast(f2h_axi_s0_rlast),
                .f2h_axi_s0_rvalid(f2h_axi_s0_rvalid),
                .f2h_axi_s0_rready(f2h_axi_s0_rready),
@@ -300,10 +316,13 @@ amaranth_top amaranth_top(
     .f2h_axi_s0_awlen(f2h_axi_s0_awlen),
     .f2h_axi_s0_awsize(f2h_axi_s0_awsize),
     .f2h_axi_s0_awburst(f2h_axi_s0_awburst),
+    .f2h_axi_s0_awlock(f2h_axi_s0_awlock),
     .f2h_axi_s0_awcache(f2h_axi_s0_awcache),
-    .f2h_axi_s0_awuser(f2h_axi_s0_awuser),
+    .f2h_axi_s0_awprot(f2h_axi_s0_awprot),
     .f2h_axi_s0_awvalid(f2h_axi_s0_awvalid),
     .f2h_axi_s0_awready(f2h_axi_s0_awready),
+    .f2h_axi_s0_awuser(f2h_axi_s0_awuser),
+    .f2h_axi_s0_wid(f2h_axi_s0_wid),
     .f2h_axi_s0_wdata(f2h_axi_s0_wdata),
     .f2h_axi_s0_wstrb(f2h_axi_s0_wstrb),
     .f2h_axi_s0_wlast(f2h_axi_s0_wlast),
@@ -318,10 +337,15 @@ amaranth_top amaranth_top(
     .f2h_axi_s0_arlen(f2h_axi_s0_arlen),
     .f2h_axi_s0_arsize(f2h_axi_s0_arsize),
     .f2h_axi_s0_arburst(f2h_axi_s0_arburst),
+    .f2h_axi_s0_arlock(f2h_axi_s0_arlock),
+    .f2h_axi_s0_arcache(f2h_axi_s0_arcache),
+    .f2h_axi_s0_arprot(f2h_axi_s0_arprot),
     .f2h_axi_s0_arvalid(f2h_axi_s0_arvalid),
     .f2h_axi_s0_arready(f2h_axi_s0_arready),
+    .f2h_axi_s0_aruser(f2h_axi_s0_aruser),
     .f2h_axi_s0_rid(f2h_axi_s0_rid),
     .f2h_axi_s0_rdata(f2h_axi_s0_rdata),
+    .f2h_axi_s0_rresp(f2h_axi_s0_rresp),
     .f2h_axi_s0_rlast(f2h_axi_s0_rlast),
     .f2h_axi_s0_rvalid(f2h_axi_s0_rvalid),
     .f2h_axi_s0_rready(f2h_axi_s0_rready),

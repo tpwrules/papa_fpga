@@ -22,14 +22,6 @@
          type = "boolean";
       }
    }
-   element f2h_axi
-   {
-      datum _sortIndex
-      {
-         value = "2";
-         type = "int";
-      }
-   }
    element hps_0
    {
       datum _sortIndex
@@ -55,7 +47,7 @@
    {
       datum _sortIndex
       {
-         value = "3";
+         value = "2";
          type = "int";
       }
    }
@@ -89,7 +81,7 @@
  <parameter name="useTestBenchNamingPattern" value="false" />
  <instanceScript></instanceScript>
  <interface name="clk" internal="clk_0.clk_in" type="clock" dir="end" />
- <interface name="f2h_axi_s0" internal="f2h_axi.s0" type="axi4" dir="end" />
+ <interface name="f2h_axi_s0" internal="hps_0.f2h_axi_slave" type="axi" dir="end" />
  <interface
    name="hps_0_f2h_cold_reset_req"
    internal="hps_0.f2h_cold_reset_req"
@@ -129,71 +121,6 @@
   <parameter name="clockFrequencyKnown" value="true" />
   <parameter name="inputClockFrequency" value="0" />
   <parameter name="resetSynchronousEdges" value="NONE" />
- </module>
- <module name="f2h_axi" kind="altera_axi_bridge" version="20.1" enabled="1">
-  <parameter name="ADDR_WIDTH" value="32" />
-  <parameter name="AXI_VERSION" value="AXI4" />
-  <parameter name="COMBINED_ACCEPTANCE_CAPABILITY" value="16" />
-  <parameter name="COMBINED_ISSUING_CAPABILITY" value="16" />
-  <parameter name="DATA_WIDTH" value="32" />
-  <parameter name="M0_ID_WIDTH" value="7" />
-  <parameter name="READ_ACCEPTANCE_CAPABILITY" value="16" />
-  <parameter name="READ_ADDR_USER_WIDTH" value="64" />
-  <parameter name="READ_DATA_REORDERING_DEPTH" value="1" />
-  <parameter name="READ_DATA_USER_WIDTH" value="64" />
-  <parameter name="READ_ISSUING_CAPABILITY" value="16" />
-  <parameter name="S0_ID_WIDTH" value="7" />
-  <parameter name="USE_M0_ARBURST" value="1" />
-  <parameter name="USE_M0_ARCACHE" value="1" />
-  <parameter name="USE_M0_ARID" value="1" />
-  <parameter name="USE_M0_ARLEN" value="1" />
-  <parameter name="USE_M0_ARLOCK" value="1" />
-  <parameter name="USE_M0_ARQOS" value="1" />
-  <parameter name="USE_M0_ARREGION" value="1" />
-  <parameter name="USE_M0_ARSIZE" value="1" />
-  <parameter name="USE_M0_ARUSER" value="0" />
-  <parameter name="USE_M0_AWBURST" value="1" />
-  <parameter name="USE_M0_AWCACHE" value="1" />
-  <parameter name="USE_M0_AWID" value="1" />
-  <parameter name="USE_M0_AWLEN" value="1" />
-  <parameter name="USE_M0_AWLOCK" value="1" />
-  <parameter name="USE_M0_AWQOS" value="1" />
-  <parameter name="USE_M0_AWREGION" value="1" />
-  <parameter name="USE_M0_AWSIZE" value="1" />
-  <parameter name="USE_M0_AWUSER" value="0" />
-  <parameter name="USE_M0_BID" value="1" />
-  <parameter name="USE_M0_BRESP" value="1" />
-  <parameter name="USE_M0_BUSER" value="0" />
-  <parameter name="USE_M0_RID" value="1" />
-  <parameter name="USE_M0_RLAST" value="1" />
-  <parameter name="USE_M0_RRESP" value="1" />
-  <parameter name="USE_M0_RUSER" value="0" />
-  <parameter name="USE_M0_WSTRB" value="1" />
-  <parameter name="USE_M0_WUSER" value="0" />
-  <parameter name="USE_PIPELINE" value="1" />
-  <parameter name="USE_S0_ARCACHE" value="0" />
-  <parameter name="USE_S0_ARLOCK" value="0" />
-  <parameter name="USE_S0_ARPROT" value="0" />
-  <parameter name="USE_S0_ARQOS" value="0" />
-  <parameter name="USE_S0_ARREGION" value="0" />
-  <parameter name="USE_S0_ARUSER" value="0" />
-  <parameter name="USE_S0_AWCACHE" value="1" />
-  <parameter name="USE_S0_AWLOCK" value="0" />
-  <parameter name="USE_S0_AWPROT" value="0" />
-  <parameter name="USE_S0_AWQOS" value="0" />
-  <parameter name="USE_S0_AWREGION" value="0" />
-  <parameter name="USE_S0_AWUSER" value="1" />
-  <parameter name="USE_S0_BRESP" value="1" />
-  <parameter name="USE_S0_BUSER" value="0" />
-  <parameter name="USE_S0_RRESP" value="0" />
-  <parameter name="USE_S0_RUSER" value="0" />
-  <parameter name="USE_S0_WLAST" value="1" />
-  <parameter name="USE_S0_WUSER" value="0" />
-  <parameter name="WRITE_ACCEPTANCE_CAPABILITY" value="16" />
-  <parameter name="WRITE_ADDR_USER_WIDTH" value="64" />
-  <parameter name="WRITE_DATA_USER_WIDTH" value="64" />
-  <parameter name="WRITE_ISSUING_CAPABILITY" value="16" />
-  <parameter name="WRITE_RESP_USER_WIDTH" value="64" />
  </module>
  <module name="hps_0" kind="altera_hps" version="20.1" enabled="1">
   <parameter name="ABSTRACT_REAL_COMPARE_TEST" value="false" />
@@ -753,16 +680,6 @@
   <parameter name="defaultConnection" value="false" />
  </connection>
  <connection
-   kind="avalon"
-   version="20.1"
-   start="f2h_axi.m0"
-   end="hps_0.f2h_axi_slave">
-  <parameter name="arbitrationPriority" value="1" />
-  <parameter name="baseAddress" value="0x0000" />
-  <parameter name="defaultConnection" value="false" />
- </connection>
- <connection kind="clock" version="20.1" start="clk_0.clk" end="f2h_axi.clk" />
- <connection
    kind="clock"
    version="20.1"
    start="clk_0.clk"
@@ -782,11 +699,6 @@
    version="20.1"
    start="clk_0.clk"
    end="hps_0.h2f_lw_axi_clock" />
- <connection
-   kind="reset"
-   version="20.1"
-   start="clk_0.clk_reset"
-   end="f2h_axi.clk_reset" />
  <connection
    kind="reset"
    version="20.1"
