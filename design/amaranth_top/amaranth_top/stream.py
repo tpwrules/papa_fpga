@@ -6,7 +6,7 @@ from amaranth_soc import csr
 from amaranth_soc.csr import field as csr_field
 
 from .bus import AudioRAMBus
-from .constants import CAP_DATA_BITS, NUM_CHANS
+from .constants import CAP_DATA_BITS
 
 # sample data in the system
 class SampleStream(Signature):
@@ -64,13 +64,8 @@ class SampleWriter(Component):
         # read/write area for testing
         test: csr_field.RW(32)
 
-    class SysParams(csr.Register):
-        # TODO: probably not the right place here for this register
-        def __init__(self):
-            super().__init__("r", csr.FieldMap({
-                # number of microphones read by the system
-                "num_mics": csr_field.R(8), # TODO: why doesn't this take reset?
-            }))
+    class Dummy(csr.Register): # just to keep ordering for now
+        dummy: csr_field.R(32)
 
     class SwapState(csr.Register):
         swap: csr_field.RW1S(1) # request swap/swap status
@@ -81,13 +76,13 @@ class SampleWriter(Component):
 
     def __init__(self):
         self._test = self.Test()
-        self._sys_params = self.SysParams()
+        self._dummy = self.Dummy()
         self._swap_state = self.SwapState()
         self._swap_addr = self.SwapAddr()
 
         reg_map = csr.RegisterMap()
         reg_map.add_register(self._test, name="test")
-        reg_map.add_register(self._sys_params, name="sys_params")
+        reg_map.add_register(self._dummy, name="dummy")
         reg_map.add_register(self._swap_state, name="swap_state")
         reg_map.add_register(self._swap_addr, name="swap_addr")
 
@@ -105,8 +100,6 @@ class SampleWriter(Component):
         # bridge containing CSRs
         m.submodules.csr_bridge = csr_bridge = self._csr_bridge
         connect(m, flipped(self.csr_bus), csr_bridge.bus)
-
-        m.d.comb += self._sys_params.f.num_mics.r_data.eq(NUM_CHANS)
 
         swap_desired = Signal() # the host desires a swap
         m.d.comb += swap_desired.eq(self._swap_state.f.swap.data)

@@ -42,7 +42,7 @@ class HW:
             raise ValueError("test register not responding")
 
         # read number of microphones
-        self.n = self.r[1]
+        self.n = (self.r[8] >> 8) & 0xFF
 
         # wait for any existing buffer swap to have completed
         while self.r[2] & 1: pass

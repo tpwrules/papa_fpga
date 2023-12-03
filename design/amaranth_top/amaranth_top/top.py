@@ -5,6 +5,7 @@ from amaranth.lib.wiring import Component, In, Out, connect, flipped
 from amaranth.lib.cdc import FFSynchronizer
 
 from amaranth_soc import csr
+from amaranth_soc.csr import field as csr_field
 
 import numpy as np
 
@@ -34,6 +35,52 @@ class Blinker(Component):
 
         return m
 
+class SystemRegs(Component):
+    csr_bus: In(csr.Signature(addr_width=2, data_width=32))
+
+    class SysParams1(csr.Register):
+        # TODO: use reset value once that's supported
+        num_mics: csr_field.R(8)
+        num_chans: csr_field.R(8)
+        num_taps: csr_field.R(8)
+
+    class SysParams2(csr.Register):
+        # TODO: use reset value once that's supported
+        mic_freq_hz: csr_field.R(16)
+
+    def __init__(self):
+        self._sys_params_1 = self.SysParams1()
+        self._sys_params_2 = self.SysParams2()
+
+        reg_map = csr.RegisterMap()
+        reg_map.add_register(self._sys_params_1, name="sys_params_1")
+        reg_map.add_register(self._sys_params_2, name="sys_params_2")
+
+        # TODO: gross and possibly illegal (is the memory map always the same?)
+        csr_sig = self.__annotations__["csr_bus"].signature
+        self._csr_bridge = csr.Bridge(reg_map, name="system_regs",
+            addr_width=csr_sig.addr_width, data_width=csr_sig.data_width)
+        csr_sig.memory_map = self._csr_bridge.bus.memory_map
+
+        super().__init__() # initialize component and attributes from signature
+
+    def elaborate(self, platform):
+        m = Module()
+
+        # bridge containing CSRs
+        m.submodules.csr_bridge = csr_bridge = self._csr_bridge
+        connect(m, flipped(self.csr_bus), csr_bridge.bus)
+
+        # initialize read-only parameter fields
+        m.d.comb += [
+            self._sys_params_1.f.num_mics.r_data.eq(NUM_MICS),
+            self._sys_params_1.f.num_chans.r_data.eq(NUM_CHANS),
+            self._sys_params_1.f.num_taps.r_data.eq(NUM_TAPS),
+            self._sys_params_2.f.mic_freq_hz.r_data.eq(MIC_FREQ_HZ),
+        ]
+
+        return m
+
 class Top(Component):
     button_raw: In(1)
     blink: Out(1)
@@ -56,11 +103,13 @@ class Top(Component):
 
         self._sample_writer = SampleWriter()
         self._mic_capture_regs = MicCaptureRegs(o_domain="mic_capture")
+        self._system_regs = SystemRegs()
 
         # add subordinate buses to decoder
         # fix addresses for now for program consistency
         self._csr_decoder.add(self._sample_writer.csr_bus, addr=0)
         self._csr_decoder.add(self._mic_capture_regs.csr_bus, addr=4)
+        self._csr_decoder.add(self._system_regs.csr_bus, addr=8)
 
         super().__init__() # initialize component and attributes from signature
 
@@ -76,6 +125,9 @@ class Top(Component):
         # decode busses for all the subordinate components
         m.submodules.csr_decoder = self._csr_decoder
         connect(m, flipped(self.csr_bus), self._csr_decoder.bus)
+
+        # hook up system registers
+        m.submodules.system_regs = self._system_regs
 
         # instantiate mic capture unit in its domain
         m.submodules.mic_capture = mic_capture = \
