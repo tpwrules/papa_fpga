@@ -42,7 +42,7 @@ class HW:
             raise ValueError("test register not responding")
 
         # read number of microphones
-        self.n = (self.r[8] >> 8) & 0xFF
+        self.n = (int(self.r[8]) >> 8) & 0xFF
 
         # wait for any existing buffer swap to have completed
         while self.r[2] & 1: pass
@@ -55,8 +55,8 @@ class HW:
         # loop until it occurs (at about 48KHz so no point sleeping)
         while (status := self.r[2]) & 1: pass
 
-        which = (status >> 1) & 1 # which buffer did we swap from?
-        where = self.r[3] # what was the last address in that buffer?
+        which = (int(status) >> 1) & 1 # which buffer did we swap from?
+        where = int(self.r[3]) # what was the last address in that buffer?
         return (which, where)
 
     def get_data(self):
