@@ -145,14 +145,27 @@ class ChannelProcessor(wiring.Component):
         assert COEFF_BITS <= 19 # DSP B input
 
         # coefficients are all -1 to 1 and the sum of the coefficients is
-        # (just about) exactly 1. we need 2 integer bits for the coefficients,
-        # 1 for sign and 1 to accommodate coefficients just slightly more than
-        # abs(1). the rest we can make fraction bits. the input and output data
-        # we treat as fully integer
+        # (just about) exactly the number of microphones. we need 2 integer
+        # bits for the coefficients, 1 for sign and 1 to accommodate
+        # coefficients just slightly more than abs(1). the rest we can make
+        # fraction bits. the input and output data we treat as fully integer,
+        # but we need to divide by the number of microphones too
         coeff_frac_bits = COEFF_BITS-2
-        # we want the output to be integral so we throw away that number of bits
-        # from the result as well
-        self._trunc_bits = coeff_frac_bits
+
+        # we can do most of the division by the number of mics by throwing
+        # away bits, but we have to do the rest by scaling the coefficients.
+        # compute the number of bits to throw away (which will be too few)
+        # then reduce the coefficients to do the rest.
+        num_mic_bits = log2_int(NUM_MICS, need_pow2=False) # could be too many
+        if NUM_MICS == 1 << num_mic_bits:
+            num_mic_frac = 1 # don't need to scale coefficients
+        else:
+            num_mic_bits -= 1 # reduce to throw away too few
+            num_mic_frac = (1<<num_mic_bits)/NUM_MICS # then scale coeffs
+
+        # we want the output to be integral so we throw away the fractional bits
+        # from the coefficients too
+        self._trunc_bits = num_mic_bits + coeff_frac_bits
 
         # multiplication of CAP_DATA_BITS.0 * 2.COEFF_BITS-2 equals
         # (CAP_DATA_BITS+2).(COEFF_BITS-2) or a total bit quantity of
@@ -162,6 +175,8 @@ class ChannelProcessor(wiring.Component):
             log2_int(NUM_TAPS * NUM_MICS, need_pow2=False)
         assert total_bits <= 64 # accumulator size
 
+        # scale coefficients to do the rest of the division by num_mics
+        coefficients = coefficients * num_mic_frac
         # convert coefficients to signed fixed point with the given number of
         # fractional bits
         coefficients = (coefficients * (1 << coeff_frac_bits)).astype(np.int64)
@@ -381,9 +396,8 @@ def demo():
     # for now generate coefficients that just copy the output to the input
     coefficients = np.zeros((NUM_CHANS, NUM_TAPS, NUM_MICS), dtype=np.float64)
     for x in range(NUM_CHANS):
-        # for the most recent time, use mic x to get the output for chan x
-        # and all others use 0
-        coefficients[x, -1, x] = 1
+        # make each output channel an average of all the input mics
+        coefficients[x, -1, :] = 1
 
     top = ConvolverDemo(coefficients)
     sim = Simulator(top)

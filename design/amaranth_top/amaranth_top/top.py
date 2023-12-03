@@ -103,9 +103,8 @@ class Top(wiring.Component):
         coefficients = np.zeros((NUM_CHANS, NUM_TAPS, NUM_MICS),
             dtype=np.float64)
         for x in range(min(NUM_MICS, NUM_CHANS)):
-            # for the most recent time, use mic x to get the output for chan x
-            # and all others use 0
-            coefficients[x, -1, x] = 1
+            # make each output channel an average of all the input mics
+            coefficients[x, -1, :] = 1
 
         # instantiate convolver in its domain
         m.submodules.convolver = convolver = \
