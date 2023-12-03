@@ -1,6 +1,6 @@
 from amaranth import *
-from amaranth.lib.wiring import Interface, connect
-from amaranth.sim.core import Simulator, Delay, Settle
+from amaranth.lib.wiring import connect
+from amaranth.sim.core import Simulator
 
 from .top import Top
 from .constants import MIC_FREQ_HZ

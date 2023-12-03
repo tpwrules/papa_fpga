@@ -1,6 +1,5 @@
 from amaranth import *
-from amaranth.lib import wiring, data
-from amaranth.lib.wiring import In, Out, Member, Signature
+from amaranth.lib.wiring import Component, In, Out, Signature
 
 # rather thin wrapper around AXI
 class AudioRAMBus(Signature):
@@ -23,7 +22,7 @@ class AudioRAMBus(Signature):
 
 # intended just to always acknowledge writes, not necessarily implement a
 # complete AXI receiver
-class FakeAudioRAMBusWriteReceiver(wiring.Component):
+class FakeAudioRAMBusWriteReceiver(Component):
     audio_ram: In(AudioRAMBus())
 
     def elaborate(self, platform):

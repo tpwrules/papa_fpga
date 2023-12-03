@@ -1,10 +1,8 @@
 import pathlib
 
 from amaranth import *
-from amaranth.lib import wiring, data
-from amaranth.lib.wiring import In, Out, Member, Interface, connect, flipped
-from amaranth.lib.cdc import ResetSynchronizer, FFSynchronizer
-from amaranth.lib.fifo import AsyncFIFO
+from amaranth.lib.wiring import Component, In, Out, connect, flipped
+from amaranth.lib.cdc import FFSynchronizer
 
 from amaranth_soc import csr
 
@@ -14,9 +12,9 @@ from .bus import AudioRAMBus
 from .constants import MIC_FREQ_HZ, NUM_TAPS, NUM_MICS, NUM_CHANS
 from .mic import MicCapture, MicCaptureRegs
 from .convolve import Convolver
-from .stream import SampleStream, SampleStreamFIFO, SampleWriter
+from .stream import SampleStreamFIFO, SampleWriter
 
-class Blinker(wiring.Component):
+class Blinker(Component):
     button_raw: In(1)
     blink: Out(1)
 
@@ -36,7 +34,7 @@ class Blinker(wiring.Component):
 
         return m
 
-class Top(wiring.Component):
+class Top(Component):
     button_raw: In(1)
     blink: Out(1)
 

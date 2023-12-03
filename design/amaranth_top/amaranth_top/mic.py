@@ -1,8 +1,6 @@
 from amaranth import *
-from amaranth.lib import wiring
-from amaranth.lib.wiring import In, Out, connect, flipped
+from amaranth.lib.wiring import Component, In, Out, connect, flipped
 from amaranth.lib.cdc import FFSynchronizer
-from amaranth.sim.core import Simulator, Delay, Settle
 
 from amaranth_soc import csr
 from amaranth_soc.csr import field as csr_field
@@ -14,7 +12,7 @@ from .misc import FFDelay
 MIC_DATA_BITS = 24 # each word is a signed 24 bit number
 MIC_FRAME_BITS = 64 # 64 data bits per data frame from the microphone
 
-class MicClockGenerator(wiring.Component):
+class MicClockGenerator(Component):
     # generate the microphone clock suitable for wiring to the microphone's
     # input pins. the generated clock is half the module clock.
     mic_sck: Out(1)
@@ -51,7 +49,7 @@ class MicClockGenerator(wiring.Component):
 
         return m
 
-class MicDataReceiver(wiring.Component):
+class MicDataReceiver(Component):
     # receive data from a microphone
     mic_sck: In(1)
     mic_data_raw: In(1)
@@ -91,7 +89,7 @@ class MicDataReceiver(wiring.Component):
 
         return m
 
-class FakeMic(wiring.Component):
+class FakeMic(Component):
     # fake microphone output data in accordance with timing diagrams
     # (assumes mic_sck is half "sync"'s clock rate)
     mic_sck: In(1)
@@ -163,7 +161,7 @@ class FakeMic(wiring.Component):
 # responsible for reducing the bit depth. currently the "scale" is just a
 # straight multiplication with gain+1 (so that 0 is gain=1) and low bit
 # truncate. we do it entirely combinatorially because of laziness
-class GainProcessor(wiring.Component):
+class GainProcessor(Component):
     sample_in: In(signed(MIC_DATA_BITS))
     sample_out: Out(signed(CAP_DATA_BITS))
 
@@ -197,7 +195,7 @@ class GainProcessor(wiring.Component):
 
 
 # separate component for CDC reasons
-class MicCaptureRegs(wiring.Component):
+class MicCaptureRegs(Component):
     csr_bus: In(csr.Signature(addr_width=2, data_width=32))
 
     # settings, synced to mic capture domain (given by o_domain)
@@ -242,7 +240,7 @@ class MicCaptureRegs(wiring.Component):
 
         return m
 
-class MicCapture(wiring.Component):
+class MicCapture(Component):
     mic_sck: Out(1) # microphone data bus
     mic_ws: Out(1)
     mic_data_raw: In(NUM_MICS//2)
@@ -366,7 +364,7 @@ class MicCapture(wiring.Component):
 
         return m
 
-class MicDemo(wiring.Component):
+class MicDemo(Component):
     mic_sck: Out(1)
 
     sample_l: Out(signed(MIC_DATA_BITS))
@@ -408,6 +406,7 @@ class MicDemo(wiring.Component):
         return m
 
 def demo():
+    from amaranth.sim.core import Simulator
     from .constants import MIC_FREQ_HZ
 
     top = MicDemo()

@@ -1,8 +1,5 @@
-import math
-
 from amaranth import *
-from amaranth.lib import wiring
-from amaranth.lib.wiring import In, Out, connect, flipped
+from amaranth.lib.wiring import Component, In, Out, connect, flipped
 from amaranth.utils import log2_int
 
 import numpy as np
@@ -13,7 +10,7 @@ from .stream import SampleStream, SampleStreamFIFO
 COEFF_BITS = 19 # multiplier supports 18x19 mode
 
 # generate the signals for all the channel blocks and store the sample data
-class Sequencer(wiring.Component):
+class Sequencer(Component):
     samples_i: In(SampleStream()) # sample data to process
     samples_i_count: In(32)
 
@@ -106,7 +103,7 @@ class Sequencer(wiring.Component):
 
 # Cyclone V DSP block which does what we want and hopefully gets inferred
 # properly
-class DSPMACBlock(wiring.Component):
+class DSPMACBlock(Component):
     # using 18x19 mode
 
     mul_a: In(signed(18)) # A input is 18 bits
@@ -126,7 +123,7 @@ class DSPMACBlock(wiring.Component):
 
         return m
 
-class ChannelProcessor(wiring.Component):
+class ChannelProcessor(Component):
     clear_accum: In(1) # if 1 then clear, else accumulate
     curr_sample: In(signed(CAP_DATA_BITS))
     coeff_index: In(range((NUM_TAPS * NUM_MICS)-1))
@@ -233,7 +230,7 @@ class ChannelProcessor(wiring.Component):
 
         return m
 
-class Convolver(wiring.Component):
+class Convolver(Component):
     samples_i: In(SampleStream())
     samples_i_count: In(32)
 
@@ -325,7 +322,7 @@ class Convolver(wiring.Component):
 
         return m
 
-class ConvolverDemo(wiring.Component):
+class ConvolverDemo(Component):
     samp_i: Out(signed(CAP_DATA_BITS))
     samp_i_first: Out(1)
 

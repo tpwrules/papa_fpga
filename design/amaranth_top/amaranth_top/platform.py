@@ -1,6 +1,5 @@
 from amaranth import *
 
-
 # Copy of the parts of amaranth/amaranth/vendor/_intel.py that are necessary to
 # have Amaranth clock domain crossing primitives (AsyncFIFO, etc) work on an
 # Intel FPGA

@@ -1,14 +1,6 @@
-import pathlib
-
 from amaranth import *
-from amaranth.lib import wiring, data
-from amaranth.lib.wiring import In, Out, Member, Interface, connect, flipped
-from amaranth.lib.cdc import ResetSynchronizer, FFSynchronizer
-from amaranth.lib.fifo import AsyncFIFO
-
-from amaranth_soc import csr
-
-import numpy as np
+from amaranth.lib.wiring import Component, In, Out
+from amaranth.lib.cdc import ResetSynchronizer
 
 from .top import Top
 from .constants import MIC_FREQ_HZ, NUM_MICS
@@ -16,7 +8,7 @@ from .mic import MicCapture
 from .convolve import Convolver
 from .cyclone_v_pll import IntelPLL
 
-class FPGATop(wiring.Component):
+class FPGATop(Component):
     clk50:      In(1)
     rst:        In(1)
 

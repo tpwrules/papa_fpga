@@ -1,6 +1,5 @@
 from amaranth import *
-from amaranth.lib import wiring, data
-from amaranth.lib.wiring import In, Out, Signature, connect, flipped
+from amaranth.lib.wiring import Component, In, Out, Signature, connect, flipped
 from amaranth.lib.fifo import AsyncFIFO
 
 from amaranth_soc import csr
@@ -20,7 +19,7 @@ class SampleStream(Signature):
             "valid": Out(1), # transmitter has new data
         })
 
-class SampleStreamFIFO(wiring.Component):
+class SampleStreamFIFO(Component):
     samples_w: In(SampleStream())
     samples_r: Out(SampleStream())
 
@@ -52,7 +51,7 @@ class SampleStreamFIFO(wiring.Component):
 
         return m
 
-class SampleWriter(wiring.Component):
+class SampleWriter(Component):
     samples: In(SampleStream())
     samples_count: In(32)
 
