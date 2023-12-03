@@ -108,15 +108,21 @@
     settings.PermitRootLogin = "yes";
   };
 
+  # ensure kernel modules for the FPGA are loaded so the bitstream load works
+  boot.kernelModules = [
+    "socfpga"
+    "altera_fpga2sdram"
+    "altera_hps2fpga"
+    "of_fpga_region"
+  ];
   systemd.services.bitstream = {
     description = "FPGA bitstream overlay loader";
 
-    wantedBy = [
-      "multi-user.target"
-      # start when the configfs is available to trigger the overlay
-      "sys-module-configfs.device"
+    wantedBy = [ "multi-user.target" ];
+    after = [
+      "sys-module-configfs.device" # configfs is available to write overlay
+      "systemd-modules-load.service" # socfpga is available to load FPGA
     ];
-    after = [ "sys-module-configfs.device" ];
 
     serviceConfig = {
       ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p /sys/kernel/config/device-tree/overlays/bitstream";
