@@ -353,6 +353,8 @@ amaranth_top amaranth_top(
     .button(KEY[0]),
     .GPIO_0_OUT(GPIO_0[35:34]),
     .GPIO_0_IN(GPIO_0[33:0]),
+    .GPIO_1_OUT(GPIO_1[35:34]),
+    .GPIO_1_IN(GPIO_1[33:0]),
 
     .f2h_axi_s0_awid(f2h_axi_s0_awid),
     .f2h_axi_s0_awaddr(f2h_axi_s0_awaddr),

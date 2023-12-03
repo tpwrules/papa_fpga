@@ -140,6 +140,8 @@ class FPGATop(wiring.Component):
 
     GPIO_0_OUT: Out(2)
     GPIO_0_IN:  In(34)
+    GPIO_1_OUT: Out(2)
+    GPIO_1_IN:  In(34)
 
     # copy-pasta from verilog
     f2h_axi_s0_awid: Out(7)
@@ -230,9 +232,14 @@ class FPGATop(wiring.Component):
         m.d.comb += [
             self.GPIO_0_OUT[1].eq(top.mic_sck),
             self.GPIO_0_OUT[0].eq(top.mic_ws),
+            self.GPIO_1_OUT[1].eq(top.mic_sck),
+            self.GPIO_1_OUT[0].eq(top.mic_ws),
         ]
-        for mpi in range(NUM_MICS//2):
-            m.d.comb += top.mic_data_raw[mpi].eq(self.GPIO_0_IN[33-mpi])
+        for mpi in range(0, NUM_MICS//2, 2):
+            m.d.comb += top.mic_data_raw[mpi].eq(self.GPIO_0_IN[33-(mpi//2)])
+            if mpi+1 < len(top.mic_data_raw):
+                m.d.comb += top.mic_data_raw[mpi+1].eq(
+                    self.GPIO_1_IN[33-(mpi//2)])
 
         # hook up audio RAM bus to AXI port
         m.d.comb += [
