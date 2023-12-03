@@ -27,7 +27,7 @@ in stdenvNoCC.mkDerivation {
     runHook preBuild
 
     mkdir -p $out
-    python3 -m amaranth_top.top $out/amaranth_top.v
+    python3 -m amaranth_top.fpga_top $out/amaranth_top.v
 
     runHook postBuild
   '';
