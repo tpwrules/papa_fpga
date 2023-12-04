@@ -342,6 +342,13 @@ set_location_assignment PIN_AE17 -to GPIO_1[35]
 # End of pin assignments by Terasic System Builder
 #============================================================
 
+# the assignment stops quartus whining about
+# Warning (330000): Timing-Driven Synthesis is skipped because it could not initialize the timing netlist
+# it just has to point to an extant entity, that entity doesn't even have
+# to contain any logic (but in the qsys files that entity would be
+# the "soc_system_hps_0_hps_io_border" entity that has the SDRAM
+# and other I/O ports like USB and Ethernet)
+set_instance_assignment -name hps_partition on -entity hps_dummy
 
 set_global_assignment -name SDC_FILE de10_nano_nixos_led.sdc
 set_global_assignment -name VERILOG_FILE amaranth_top.v
