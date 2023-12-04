@@ -73,7 +73,8 @@ def serve(hw, channels, port):
             (client_socket, address) = server_socket.accept()
             try:
                 capture(hw, client_socket, channels)
-            except (ConnectionResetError, ConnectionAbortedError):
+            except (ConnectionResetError, ConnectionAbortedError,
+                    BrokenPipeError):
                 print("client left")
             finally:
                 client_socket.close()
