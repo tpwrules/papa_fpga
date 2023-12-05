@@ -104,8 +104,8 @@ class Top(Component):
     audio_ram: Out(AudioRAMBus())
     csr_bus: In(csr.Signature(addr_width=8, data_width=32))
 
-    mic_sck_out: Out(1) # microphone data bus out to the actual microphones
-    mic_ws_out: Out(1)
+    mic_sck: Out(1) # microphone data bus
+    mic_ws: Out(1)
     mic_data_raw: In(NUM_MICS//2)
 
     def __init__(self):
@@ -147,8 +147,8 @@ class Top(Component):
         m.submodules.mic_capture = mic_capture = \
             DomainRenamer("mic_capture")(MicCapture())
         m.d.comb += [
-            self.mic_sck_out.eq(mic_capture.mic_sck_out),
-            self.mic_ws_out.eq(mic_capture.mic_ws_out),
+            self.mic_sck.eq(mic_capture.mic_sck),
+            self.mic_ws.eq(mic_capture.mic_ws),
             mic_capture.mic_data_raw.eq(self.mic_data_raw),
         ]
 
@@ -156,8 +156,7 @@ class Top(Component):
         m.submodules.mic_capture_regs = cap_regs = self._mic_capture_regs
         m.d.comb += [
             mic_capture.gain.eq(cap_regs.gain),
-            mic_capture.use_fake_mics.eq(cap_regs.use_fake_mics),
-            mic_capture.enable_output_clocks.eq(cap_regs.enable_output_clocks),
+            mic_capture.use_fake_mics.eq(cap_regs.use_fake_mics)
         ]
 
         # FIFO to cross domains from mic capture

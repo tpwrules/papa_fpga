@@ -14,20 +14,13 @@ MIC_FRAME_BITS = 64 # 64 data bits per data frame from the microphone
 
 class MicClockGenerator(Component):
     # generate the microphone clock suitable for wiring to the microphone's
-    # input pins. the generated clock is half the module clock. these clocks
-    # are used for internal purposes
+    # input pins. the generated clock is half the module clock.
     mic_sck: Out(1)
     mic_ws: Out(1)
     # pulsed on the cycle the mic transmits the first frame data bit.
     # (cycle after WS falls, before FF delay) (note also the first data bit is
     # hi-z and these cycles are with reference to the module clock)
     mic_data_sof_sync: Out(1)
-
-    # these clocks are the same as above, but are wired to the actual mics, and
-    # can be disabled to stop/reset the mics.
-    mic_sck_out: Out(1)
-    mic_ws_out: Out(1)
-    enable_output_clocks: In(1)
 
     def elaborate(self, platform):
         m = Module()
@@ -36,26 +29,17 @@ class MicClockGenerator(Component):
         cycle = Signal(range(MIC_FRAME_BITS))
 
         # toggle clock
-        m.d.sync += [
-            self.mic_sck.eq(~self.mic_sck),
-            self.mic_sck_out.eq(
-                Mux(self.enable_output_clocks, ~self.mic_sck, 0)),
-        ]
+        m.d.sync += self.mic_sck.eq(~self.mic_sck)
         # bump the cycle counter on the positive edge of the mic cycle
         with m.If(~self.mic_sck):
             m.d.sync += cycle.eq(cycle + 1)
 
         # lower word select on falling edge before cycle start
         with m.If((cycle == MIC_FRAME_BITS-1) & self.mic_sck):
-            m.d.sync += [
-                self.mic_ws.eq(0),
-                self.mic_ws_out.eq(0), # want to turn off even if not enabled
-            ]
+            m.d.sync += self.mic_ws.eq(0)
         # raise word select on falling edge before second half of cycle
         with m.If((cycle == (MIC_FRAME_BITS//2)-1) & self.mic_sck):
             m.d.sync += self.mic_ws.eq(1)
-            with m.If(self.enable_output_clocks):
-                m.d.sync += self.mic_ws_out.eq(1)
 
         mic_data_sof = Signal()
         m.d.comb += mic_data_sof.eq((cycle == 0) & self.mic_sck)
@@ -217,7 +201,6 @@ class MicCaptureRegs(Component):
     # settings, synced to mic capture domain (given by o_domain)
     gain: Out(8)
     use_fake_mics: Out(1)
-    enable_output_clocks: Out(1)
 
     class Gain(csr.Register):
         gain: csr_field.RW(8)
@@ -225,20 +208,15 @@ class MicCaptureRegs(Component):
     class FakeMics(csr.Register):
         use_fake_mics: csr_field.RW(1)
 
-    class Clocks(csr.Register):
-        enable_output_clocks: csr_field.RW(1)
-
     def __init__(self, *, o_domain):
         self._o_domain = o_domain
 
         self._gain = self.Gain()
         self._fake_mics = self.FakeMics()
-        self._clocks = self.Clocks()
 
         reg_map = csr.RegisterMap()
         reg_map.add_register(self._gain, name="gain")
         reg_map.add_register(self._fake_mics, name="fake_mics")
-        reg_map.add_register(self._clocks, name="clocks")
 
         # TODO: gross and possibly illegal (is the memory map always the same?)
         csr_sig = self.__annotations__["csr_bus"].signature
@@ -259,23 +237,17 @@ class MicCaptureRegs(Component):
             o_domain=self._o_domain)
         m.submodules += FFSynchronizer(self._fake_mics.f.use_fake_mics.data,
             self.use_fake_mics, o_domain=self._o_domain)
-        m.submodules += FFSynchronizer(self._clocks.f.enable_output_clocks.data,
-            self.enable_output_clocks, o_domain=self._o_domain)
 
         return m
 
 class MicCapture(Component):
-    mic_sck: Out(1) # microphone data bus used internally
+    mic_sck: Out(1) # microphone data bus
     mic_ws: Out(1)
-
-    mic_sck_out: Out(1) # microphone data bus out to the actual microphones
-    mic_ws_out: Out(1)
     mic_data_raw: In(NUM_MICS//2)
 
     # settings, synced to our domain
     gain: In(8)
     use_fake_mics: In(1)
-    enable_output_clocks: In(1)
 
     samples: Out(SampleStream())
 
@@ -292,9 +264,6 @@ class MicCapture(Component):
         m.d.comb += [
             self.mic_sck.eq(clk_gen.mic_sck),
             self.mic_ws.eq(clk_gen.mic_ws),
-            self.mic_sck_out.eq(clk_gen.mic_sck_out),
-            self.mic_ws_out.eq(clk_gen.mic_ws_out),
-            clk_gen.enable_output_clocks.eq(self.enable_output_clocks)
         ]
 
         # set up fake microphones for testing purposes

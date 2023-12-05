@@ -42,9 +42,6 @@ class HW:
         if self.r[0] != val:
             raise ValueError("test register not responding")
 
-        # turn off microphone clock
-        self.r[6] = 0
-
         # read system parameters
         p1 = int(self.r[8])
         p2 = int(self.r[9])
@@ -55,12 +52,8 @@ class HW:
 
         self._store_raw_data = bool(self.r[10]) # need to know for data shape
 
-        # wait for any existing buffer swap to have completed and wait for
-        # microphones to reset with disabled clocks
-        time.sleep(0.01)
-
-        # turn on microphone clock after the reset
-        self.r[6] = 1
+        # wait for any existing buffer swap to have completed
+        while self.r[2] & 1: pass
 
     def swap_buffers(self):
         # swap buffers and return (old buffer, old address)
