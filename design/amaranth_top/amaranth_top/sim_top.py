@@ -46,7 +46,13 @@ def run_sim():
             yield top.csr_bus.w_stb.eq(0)
             yield
 
-        for _ in range(512):
+        for _ in range(256):
+            yield
+
+        # turn on microphone clock (doesn't do much in sim)
+        yield from write(6, 1)
+
+        for _ in range(256):
             yield
 
         # request switch to fake mics

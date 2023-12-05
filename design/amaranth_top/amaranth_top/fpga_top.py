@@ -108,10 +108,10 @@ class FPGATop(Component):
 
         # wire up microphone data bus
         m.d.comb += [
-            self.GPIO_0_OUT[1].eq(top.mic_sck),
-            self.GPIO_0_OUT[0].eq(top.mic_ws),
-            self.GPIO_1_OUT[1].eq(top.mic_sck),
-            self.GPIO_1_OUT[0].eq(top.mic_ws),
+            self.GPIO_0_OUT[1].eq(top.mic_sck_out),
+            self.GPIO_0_OUT[0].eq(top.mic_ws_out),
+            self.GPIO_1_OUT[1].eq(top.mic_sck_out),
+            self.GPIO_1_OUT[0].eq(top.mic_ws_out),
         ]
         for mpi in range(0, NUM_MICS//2, 2):
             m.d.comb += top.mic_data_raw[mpi].eq(self.GPIO_0_IN[33-(mpi//2)])
