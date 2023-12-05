@@ -12,6 +12,8 @@ pkgs.mkShell {
     ]))
     pkgs.yosys
 
+    pkgs.nixos-rebuild
+
     pleaseKeepMyInputs
   ];
 }
