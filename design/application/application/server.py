@@ -65,7 +65,7 @@ def serve(hw, channels, port):
     print(f"listening at IP {host} port {port}")
 
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind((host, port))
+    server_socket.bind(("0.0.0.0", port))
     server_socket.listen(1)
 
     try:
