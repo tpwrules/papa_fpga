@@ -114,6 +114,7 @@
     "altera_fpga2sdram"
     "altera_hps2fpga"
     "of_fpga_region"
+    "g_ncm" # USB gadget module for USB ethernet
   ];
   systemd.services.bitstream = {
     description = "FPGA bitstream overlay loader";
@@ -135,6 +136,25 @@
 
   # uncomplicate using the server
   networking.firewall.enable = false;
+
+  # run DHCP for access over USB ethernet gadget
+  services.dnsmasq = {
+    enable = true;
+
+    settings = {
+      bind-interfaces = true;
+      interface = [ "usb0" ];
+      dhcp-range = [ "192.168.80.100,192.168.80.200,255.255.255.0,12h" ];
+    };
+  };
+
+  # hardcode USB ethernet gadget address for easy access
+  networking.interfaces.usb0.ipv4.addresses = [ {
+    address = "192.168.80.1";
+    prefixLength = 24;
+  } ];
+
+  networking.dhcpcd.denyInterfaces = [ "usb0" ];
 
   # save space and compilation time. might revise?
   hardware.enableAllFirmware = lib.mkForce false;
