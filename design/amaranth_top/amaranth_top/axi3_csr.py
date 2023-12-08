@@ -116,8 +116,7 @@ class AXI3CSRBridge(Component):
                 axi_rlen.eq(self.arlen),
                 axi_rid.eq(self.arid),
             ]
-            with m.If((self.arsize == 0b010) # 4 bytes
-                    & (self.arlock == 0) # not locked
+            with m.If((self.arlock == 0) # not locked
                     & (self.arburst == 0b01) # increment burst
                     & (self.araddr[:2] == 0)): # aligned
                 m.d.sync += axi_rokay.eq(1)
