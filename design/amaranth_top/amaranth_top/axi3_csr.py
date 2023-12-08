@@ -56,7 +56,7 @@ class AXI3CSRBridge(Component):
         # hook them to a FIFO and let them operate independently. each can store
         # one max-sized burst.
         m.submodules.w_fifo = w_fifo = SyncFIFO(width=32, depth=16)
-        m.submodules.r_fifo = r_fifo = SyncFIFO(width=35, depth=16)
+        m.submodules.r_fifo = r_fifo = SyncFIFO(width=32+3+12, depth=16)
 
         m.d.comb += [
             # interface to AXI side
@@ -64,7 +64,7 @@ class AXI3CSRBridge(Component):
             w_fifo.w_en.eq(self.wvalid & self.wready),
             self.wready.eq(w_fifo.w_rdy),
 
-            Cat(self.rdata, self.rresp, self.rlast).eq(r_fifo.r_data),
+            Cat(self.rdata, self.rid, self.rresp, self.rlast).eq(r_fifo.r_data),
             r_fifo.r_en.eq(self.rvalid & self.rready),
             self.rvalid.eq(r_fifo.r_rdy),
 
@@ -83,6 +83,7 @@ class AXI3CSRBridge(Component):
         axi_wokay = Signal() # write transaction is valid (aligned, etc.)
         axi_waddr = Signal(21)
         axi_wlen = Signal(4)
+        axi_wid = Signal(12)
 
         m.d.comb += self.awready.eq(~axi_wavail)
         with m.If(self.awready & self.awvalid):
@@ -90,6 +91,7 @@ class AXI3CSRBridge(Component):
                 axi_wavail.eq(1),
                 axi_waddr.eq(self.awaddr),
                 axi_wlen.eq(self.awlen),
+                axi_wid.eq(self.awid),
             ]
             with m.If((self.awsize == 0b010) # 4 bytes
                     & (self.awlock == 0) # not locked
@@ -104,6 +106,7 @@ class AXI3CSRBridge(Component):
         axi_rokay = Signal() # read transaction is valid (aligned, etc.)
         axi_raddr = Signal(21)
         axi_rlen = Signal(4)
+        axi_rid = Signal(12)
 
         m.d.comb += self.arready.eq(~axi_ravail)
         with m.If(self.arready & self.arvalid):
@@ -111,6 +114,7 @@ class AXI3CSRBridge(Component):
                 axi_ravail.eq(1),
                 axi_raddr.eq(self.araddr),
                 axi_rlen.eq(self.arlen),
+                axi_rid.eq(self.arid),
             ]
             with m.If((self.arsize == 0b010) # 4 bytes
                     & (self.arlock == 0) # not locked
@@ -131,12 +135,13 @@ class AXI3CSRBridge(Component):
 
         # read bus is registered so we need to delay the FIFO signals
         r_fifo_w_en = Signal()
+        r_fifo_rid = Signal(12)
         r_fifo_rresp = Signal(2)
         r_fifo_rlast = Signal()
-        r_fifo_dataex = Signal(3)
+        r_fifo_dataex = Signal(3+12)
         m.d.sync += [
             r_fifo.w_en.eq(r_fifo_w_en),
-            r_fifo_dataex.eq(Cat(r_fifo_rresp, r_fifo_rlast))
+            r_fifo_dataex.eq(Cat(r_fifo_rid, r_fifo_rresp, r_fifo_rlast))
         ]
         m.d.comb += r_fifo.w_data.eq(Cat(self.csr_bus.r_data, r_fifo_dataex))
 
@@ -167,6 +172,7 @@ class AXI3CSRBridge(Component):
             with m.State("WRITE_DONE"):
                 m.d.comb += [
                     self.bvalid.eq(1),
+                    self.bid.eq(axi_wid),
                     self.bresp.eq(Mux(axi_wokay, 0, 0b10)), # target error
                 ]
                 with m.If(self.bready):
@@ -176,8 +182,9 @@ class AXI3CSRBridge(Component):
             with m.State("READ"):
                 m.d.comb += [
                     self.csr_bus.addr.eq(axi_raddr[2:]),
-                    self.csr_bus.r_stb.eq(axi_wokay),
+                    self.csr_bus.r_stb.eq(axi_rokay),
                     r_fifo_w_en.eq(1),
+                    r_fifo_rid.eq(axi_rid),
                     r_fifo_rresp.eq(Mux(axi_rokay, 0, 0b10)), # target error
                 ]
                 m.d.sync += [
