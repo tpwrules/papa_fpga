@@ -352,7 +352,6 @@ set_instance_assignment -name hps_partition on -entity hps_dummy
 
 set_global_assignment -name SDC_FILE de10_nano_nixos_led.sdc
 set_global_assignment -name VERILOG_FILE amaranth_top.v
-set_global_assignment -name QIP_FILE soc_system/synthesis/soc_system.qip
 
 set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
 set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top

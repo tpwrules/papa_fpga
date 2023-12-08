@@ -1,5 +1,5 @@
 from amaranth import *
-from amaranth.lib.wiring import Component, In, Out
+from amaranth.lib.wiring import Component, In, Out, connect
 from amaranth.lib.cdc import ResetSynchronizer
 
 from .top import Top
@@ -7,6 +7,7 @@ from .constants import MIC_FREQ_HZ, NUM_MICS
 from .mic import MicCapture
 from .convolve import Convolver
 from .cyclone_v_pll import IntelPLL
+from .axi3_csr import AXI3CSRBridge
 
 class FPGATop(Component):
     clk50:      In(1)
@@ -61,16 +62,42 @@ class FPGATop(Component):
     f2h_axi_s0_rvalid: In(1)
     f2h_axi_s0_rready: Out(1)
 
-    mm_bridge_fpga_m0_waitrequest: Out(1)
-    mm_bridge_fpga_m0_readdata: Out(32)
-    mm_bridge_fpga_m0_readdatavalid: Out(1)
-    mm_bridge_fpga_m0_burstcount: In(1)
-    mm_bridge_fpga_m0_writedata: In(32)
-    mm_bridge_fpga_m0_address: In(10)
-    mm_bridge_fpga_m0_write: In(1)
-    mm_bridge_fpga_m0_read: In(1)
-    mm_bridge_fpga_m0_byteenable: In(4)
-    mm_bridge_fpga_m0_debugaccess: In(1)
+    h2f_lw_awid: In(12)
+    h2f_lw_awaddr: In(21)
+    h2f_lw_awlen: In(4)
+    h2f_lw_awsize: In(3)
+    h2f_lw_awburst: In(2)
+    h2f_lw_awlock: In(2)
+    h2f_lw_awcache: In(4)
+    h2f_lw_awprot: In(3)
+    h2f_lw_awvalid: In(1)
+    h2f_lw_awready: Out(1)
+    h2f_lw_wid: In(12)
+    h2f_lw_wdata: In(32)
+    h2f_lw_wstrb: In(4)
+    h2f_lw_wlast: In(1)
+    h2f_lw_wvalid: In(1)
+    h2f_lw_wready: Out(1)
+    h2f_lw_bid: Out(12)
+    h2f_lw_bresp: Out(2)
+    h2f_lw_bvalid: Out(1)
+    h2f_lw_bready: In(1)
+    h2f_lw_arid: In(12)
+    h2f_lw_araddr: In(21)
+    h2f_lw_arlen: In(4)
+    h2f_lw_arsize: In(3)
+    h2f_lw_arburst: In(2)
+    h2f_lw_arlock: In(2)
+    h2f_lw_arcache: In(4)
+    h2f_lw_arprot: In(3)
+    h2f_lw_arvalid: In(1)
+    h2f_lw_arready: Out(1)
+    h2f_lw_rid: Out(12)
+    h2f_lw_rdata: Out(32)
+    h2f_lw_rresp: Out(2)
+    h2f_lw_rlast: Out(1)
+    h2f_lw_rvalid: Out(1)
+    h2f_lw_rready: In(1)
 
     def elaborate(self, platform):
         m = Module()
@@ -171,20 +198,16 @@ class FPGATop(Component):
             self.f2h_axi_s0_rready.eq(self.f2h_axi_s0_rvalid),
         ]
 
-        # hook up CSR interface to Avalon-MM port
-        m.d.comb += [
-            # only connect word address
-            top.csr_bus.addr.eq(self.mm_bridge_fpga_m0_address[2:]),
-            top.csr_bus.w_stb.eq(self.mm_bridge_fpga_m0_write),
-            top.csr_bus.w_data.eq(self.mm_bridge_fpga_m0_writedata),
-            top.csr_bus.r_stb.eq(self.mm_bridge_fpga_m0_read),
-            self.mm_bridge_fpga_m0_readdata.eq(top.csr_bus.r_data),
-        ]
-        # we never need to wait
-        m.d.comb += self.mm_bridge_fpga_m0_waitrequest.eq(0)
-        # data is always valid the cycle after the request
-        m.d.sync += self.mm_bridge_fpga_m0_readdatavalid.eq(
-            self.mm_bridge_fpga_m0_read)
+        # hook up AXI -> CSR bridge
+        m.submodules.csr_bridge = csr_bridge = AXI3CSRBridge()
+        for name in self.signature.members.keys():
+            if not name.startswith("h2f_lw_"): continue
+            bname = name.replace("h2f_lw_", "")
+            if self.signature.members[name].flow == In:
+                m.d.comb += getattr(csr_bridge, bname).eq(getattr(self, name))
+            else:
+                m.d.comb += getattr(self, name).eq(getattr(csr_bridge, bname))
+        connect(m, csr_bridge.csr_bus, top.csr_bus)
 
         return m
 

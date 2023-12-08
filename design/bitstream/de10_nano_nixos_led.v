@@ -140,17 +140,6 @@ wire        h2f_lw_rlast                          ;//                  .rlast
 wire        h2f_lw_rvalid                         ;//                  .rvalid
 wire        h2f_lw_rready                         ;//                  .rready
 
-wire        mm_bridge_fpga_m0_waitrequest         ;//              mm_bridge_fpga_m0.waitrequest
-wire [31:0] mm_bridge_fpga_m0_readdata            ;//                               .readdata
-wire        mm_bridge_fpga_m0_readdatavalid       ;//                               .readdatavalid
-wire [0:0]  mm_bridge_fpga_m0_burstcount          ;//                               .burstcount
-wire [31:0] mm_bridge_fpga_m0_writedata           ;//                               .writedata
-wire [9:0]  mm_bridge_fpga_m0_address             ;//                               .address
-wire        mm_bridge_fpga_m0_write               ;//                               .write
-wire        mm_bridge_fpga_m0_read                ;//                               .read
-wire [3:0]  mm_bridge_fpga_m0_byteenable          ;//                               .byteenable
-wire        mm_bridge_fpga_m0_debugaccess         ;//                               .debugaccess
-
 hps_dummy hps_dummy();
 
 // not sure if mandatory
@@ -331,59 +320,6 @@ cyclonev_hps_interface_fpga2sdram f2sdram(
 //=======================================================
 //  Structural coding
 //=======================================================
-soc_system u0(
-    .clk_clk(FPGA_CLK1_50),
-    .reset_reset_n(hps_fpga_reset_n),
-
-    .h2f_lw_awid(h2f_lw_awid),
-    .h2f_lw_awaddr(h2f_lw_awaddr),
-    .h2f_lw_awlen(h2f_lw_awlen),
-    .h2f_lw_awsize(h2f_lw_awsize),
-    .h2f_lw_awburst(h2f_lw_awburst),
-    .h2f_lw_awlock(h2f_lw_awlock),
-    .h2f_lw_awcache(h2f_lw_awcache),
-    .h2f_lw_awprot(h2f_lw_awprot),
-    .h2f_lw_awvalid(h2f_lw_awvalid),
-    .h2f_lw_awready(h2f_lw_awready),
-    .h2f_lw_wid(h2f_lw_wid),
-    .h2f_lw_wdata(h2f_lw_wdata),
-    .h2f_lw_wstrb(h2f_lw_wstrb),
-    .h2f_lw_wlast(h2f_lw_wlast),
-    .h2f_lw_wvalid(h2f_lw_wvalid),
-    .h2f_lw_wready(h2f_lw_wready),
-    .h2f_lw_bid(h2f_lw_bid),
-    .h2f_lw_bresp(h2f_lw_bresp),
-    .h2f_lw_bvalid(h2f_lw_bvalid),
-    .h2f_lw_bready(h2f_lw_bready),
-    .h2f_lw_arid(h2f_lw_arid),
-    .h2f_lw_araddr(h2f_lw_araddr),
-    .h2f_lw_arlen(h2f_lw_arlen),
-    .h2f_lw_arsize(h2f_lw_arsize),
-    .h2f_lw_arburst(h2f_lw_arburst),
-    .h2f_lw_arlock(h2f_lw_arlock),
-    .h2f_lw_arcache(h2f_lw_arcache),
-    .h2f_lw_arprot(h2f_lw_arprot),
-    .h2f_lw_arvalid(h2f_lw_arvalid),
-    .h2f_lw_arready(h2f_lw_arready),
-    .h2f_lw_rid(h2f_lw_rid),
-    .h2f_lw_rdata(h2f_lw_rdata),
-    .h2f_lw_rresp(h2f_lw_rresp),
-    .h2f_lw_rlast(h2f_lw_rlast),
-    .h2f_lw_rvalid(h2f_lw_rvalid),
-    .h2f_lw_rready(h2f_lw_rready),
-
-    .mm_bridge_fpga_m0_waitrequest(mm_bridge_fpga_m0_waitrequest),
-    .mm_bridge_fpga_m0_readdata(mm_bridge_fpga_m0_readdata),
-    .mm_bridge_fpga_m0_readdatavalid(mm_bridge_fpga_m0_readdatavalid),
-    .mm_bridge_fpga_m0_burstcount(mm_bridge_fpga_m0_burstcount),
-    .mm_bridge_fpga_m0_writedata(mm_bridge_fpga_m0_writedata),
-    .mm_bridge_fpga_m0_address(mm_bridge_fpga_m0_address),
-    .mm_bridge_fpga_m0_write(mm_bridge_fpga_m0_write),
-    .mm_bridge_fpga_m0_read(mm_bridge_fpga_m0_read),
-    .mm_bridge_fpga_m0_byteenable(mm_bridge_fpga_m0_byteenable),
-    .mm_bridge_fpga_m0_debugaccess(mm_bridge_fpga_m0_debugaccess),
-);
-
 wire blink;
 wire [2:0] status;
 amaranth_top amaranth_top(
@@ -436,16 +372,42 @@ amaranth_top amaranth_top(
     .f2h_axi_s0_rvalid(f2h_axi_s0_rvalid),
     .f2h_axi_s0_rready(f2h_axi_s0_rready),
 
-    .mm_bridge_fpga_m0_waitrequest(mm_bridge_fpga_m0_waitrequest),
-    .mm_bridge_fpga_m0_readdata(mm_bridge_fpga_m0_readdata),
-    .mm_bridge_fpga_m0_readdatavalid(mm_bridge_fpga_m0_readdatavalid),
-    .mm_bridge_fpga_m0_burstcount(mm_bridge_fpga_m0_burstcount),
-    .mm_bridge_fpga_m0_writedata(mm_bridge_fpga_m0_writedata),
-    .mm_bridge_fpga_m0_address(mm_bridge_fpga_m0_address),
-    .mm_bridge_fpga_m0_write(mm_bridge_fpga_m0_write),
-    .mm_bridge_fpga_m0_read(mm_bridge_fpga_m0_read),
-    .mm_bridge_fpga_m0_byteenable(mm_bridge_fpga_m0_byteenable),
-    .mm_bridge_fpga_m0_debugaccess(mm_bridge_fpga_m0_debugaccess),
+    .h2f_lw_awid(h2f_lw_awid),
+    .h2f_lw_awaddr(h2f_lw_awaddr),
+    .h2f_lw_awlen(h2f_lw_awlen),
+    .h2f_lw_awsize(h2f_lw_awsize),
+    .h2f_lw_awburst(h2f_lw_awburst),
+    .h2f_lw_awlock(h2f_lw_awlock),
+    .h2f_lw_awcache(h2f_lw_awcache),
+    .h2f_lw_awprot(h2f_lw_awprot),
+    .h2f_lw_awvalid(h2f_lw_awvalid),
+    .h2f_lw_awready(h2f_lw_awready),
+    .h2f_lw_wid(h2f_lw_wid),
+    .h2f_lw_wdata(h2f_lw_wdata),
+    .h2f_lw_wstrb(h2f_lw_wstrb),
+    .h2f_lw_wlast(h2f_lw_wlast),
+    .h2f_lw_wvalid(h2f_lw_wvalid),
+    .h2f_lw_wready(h2f_lw_wready),
+    .h2f_lw_bid(h2f_lw_bid),
+    .h2f_lw_bresp(h2f_lw_bresp),
+    .h2f_lw_bvalid(h2f_lw_bvalid),
+    .h2f_lw_bready(h2f_lw_bready),
+    .h2f_lw_arid(h2f_lw_arid),
+    .h2f_lw_araddr(h2f_lw_araddr),
+    .h2f_lw_arlen(h2f_lw_arlen),
+    .h2f_lw_arsize(h2f_lw_arsize),
+    .h2f_lw_arburst(h2f_lw_arburst),
+    .h2f_lw_arlock(h2f_lw_arlock),
+    .h2f_lw_arcache(h2f_lw_arcache),
+    .h2f_lw_arprot(h2f_lw_arprot),
+    .h2f_lw_arvalid(h2f_lw_arvalid),
+    .h2f_lw_arready(h2f_lw_arready),
+    .h2f_lw_rid(h2f_lw_rid),
+    .h2f_lw_rdata(h2f_lw_rdata),
+    .h2f_lw_rresp(h2f_lw_rresp),
+    .h2f_lw_rlast(h2f_lw_rlast),
+    .h2f_lw_rvalid(h2f_lw_rvalid),
+    .h2f_lw_rready(h2f_lw_rready),
 );
 
 assign LED[0] = blink;
