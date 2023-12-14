@@ -21,12 +21,13 @@ def get_ip():
         s.close()
     return IP
 
-def capture(hw, sock, channels):
+def capture(hw, sock, channels, limit_samples):
     # swap buffers at the beginning since the current one probably overflowed
     hw.swap_buffers()
 
     print("capture is starting!")
-    while True:
+    unlimited = limit_samples <= 0
+    while unlimited or limit_samples > 0:
         try:
             data = hw.get_data()
         except ValueError:
@@ -35,6 +36,10 @@ def capture(hw, sock, channels):
 
         print(f"got {len(data)} samples")
 
+        if limit_samples > 0:
+            data = data[:limit_samples]
+            limit_samples -= len(data)
+
         data_bytes = data[:, :channels].reshape(-1).view(np.uint8)
         while len(data_bytes) > 0: # while we have data to transmit
             sent = sock.send(data_bytes[:4096]) # send a reasonable amount
@@ -42,6 +47,8 @@ def capture(hw, sock, channels):
             data_bytes = data_bytes[sent:] # discard bytes we sent
 
         time.sleep(0.1)
+
+    print("desired number of samples sent")
 
 def parse_args():
     parser = argparse.ArgumentParser(prog="server",
@@ -57,10 +64,12 @@ def parse_args():
         help="Send raw mic data instead of convolved output channels.")
     parser.add_argument('--port', type=int, default=2048,
         help="TCP port to listen on for connections.")
+    parser.add_argument('--limit', type=float, default=0,
+        help="Seconds of data to send per connection, default 0 for unlimited.")
 
     return parser.parse_args()
 
-def serve(hw, channels, port):
+def serve(hw, channels, port, limit_samples):
     host = get_ip()
     print(f"listening at IP {host} port {port}")
 
@@ -72,7 +81,7 @@ def serve(hw, channels, port):
         while True:
             (client_socket, address) = server_socket.accept()
             try:
-                capture(hw, client_socket, channels)
+                capture(hw, client_socket, channels, limit_samples)
                 print("client said goodbye")
             except (ConnectionResetError, ConnectionAbortedError,
                     BrokenPipeError):
@@ -86,7 +95,8 @@ def server():
     args = parse_args()
 
     hw = HW()
-    print(f"capture frequency is {hw.mic_freq_hz}Hz")
+    capture_frequency = hw.mic_freq_hz
+    print(f"capture frequency is {capture_frequency}Hz")
 
     hw.set_gain(args.gain)
     hw.set_use_fake_mics(args.fake)
@@ -100,7 +110,7 @@ def server():
         raise ValueError(f"must be 1 <= channels <= {max_channels}")
 
     try:
-        serve(hw, channels, args.port)
+        serve(hw, channels, args.port, int(capture_frequency * args.limit))
     except KeyboardInterrupt:
         print("bye")
 
