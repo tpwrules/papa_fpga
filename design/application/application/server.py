@@ -37,7 +37,7 @@ def capture(hw, sock, channels):
 
         data_bytes = data[:, :channels].reshape(-1).view(np.uint8)
         while len(data_bytes) > 0: # while we have data to transmit
-            sent = sock.send(data_bytes) # send as much as we can
+            sent = sock.send(data_bytes[:4096]) # send a reasonable amount
             if sent == 0: return # connection probably broken
             data_bytes = data_bytes[sent:] # discard bytes we sent
 
@@ -73,9 +73,10 @@ def serve(hw, channels, port):
             (client_socket, address) = server_socket.accept()
             try:
                 capture(hw, client_socket, channels)
+                print("client said goodbye")
             except (ConnectionResetError, ConnectionAbortedError,
                     BrokenPipeError):
-                print("client left")
+                print("client left rudely")
             finally:
                 client_socket.close()
     finally:
