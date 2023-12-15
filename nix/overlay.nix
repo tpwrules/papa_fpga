@@ -12,22 +12,24 @@ final: prev: {
 
       # upgrade to latest version
       amaranth = (python-prev.amaranth.overrideAttrs (o: {
+        version = "0.4.0";
+
         src = final.fetchFromGitHub {
           owner = "amaranth-lang";
           repo = "amaranth";
-          rev = "b0b193f1ad65d1f4f5c16a4b8249f43b3ea29c9f";
-          hash = "sha256-EoZDhJDnDbxad3aw8pjuvfVOT1vSn4gUP//ocP2T//c=";
+          rev = "v0.4.0";
+          hash = "sha256-dC+yFPZnKzTYrzzzoPXGbsc0i+Bhh80d/7ngjp8SQdc=";
         };
       }));
 
       amaranth-soc = (python-prev.amaranth-soc.overrideAttrs (o: {
-        version = "unstable-2023-11-22-pr-40";
+        version = "unstable-2023-12-15-pr-40";
 
         src = final.fetchFromGitHub {
           owner = "amaranth-lang";
           repo = "amaranth-soc";
-          rev = "b814a7730d156054f871ba1cf6bfa9275eb090c7";
-          hash = "sha256-OSYsXS2HrtqofhXb+XP5zGkMg9QkZs9GZBMx+36plm4=";
+          rev = "be1f028af8573ac985b7c6fa1b8360a7e6a41f49";
+          hash = "sha256-XKSGBSwu415oEayv3gQfZePgkeSQQYeUuzchcK3QqLU=";
           # files change depending on github PR status
           postFetch = "rm -f $out/.git_archival.txt $out/.gitattributes";
         };
