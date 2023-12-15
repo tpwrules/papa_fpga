@@ -65,13 +65,13 @@ class SystemRegs(Component):
         reg_map.add_register(self._sys_params_2, name="sys_params_2")
         reg_map.add_register(self._raw_data_ctrl, name="raw_data_ctrl")
 
-        # TODO: gross and possibly illegal (is the memory map always the same?)
         csr_sig = self.__annotations__["csr_bus"].signature
         self._csr_bridge = csr.Bridge(reg_map, name="system_regs",
             addr_width=csr_sig.addr_width, data_width=csr_sig.data_width)
-        csr_sig.memory_map = self._csr_bridge.bus.memory_map
 
         super().__init__() # initialize component and attributes from signature
+
+        self.csr_bus.memory_map = self._csr_bridge.bus.memory_map
 
     def elaborate(self, platform):
         m = Module()
@@ -109,11 +109,9 @@ class Top(Component):
     mic_data_raw: In(NUM_MICS//2)
 
     def __init__(self):
-        # TODO: gross and possibly illegal (is the memory map always the same?)
         csr_sig = self.__annotations__["csr_bus"].signature
         self._csr_decoder = csr.Decoder(
             addr_width=csr_sig.addr_width, data_width=csr_sig.data_width)
-        csr_sig.memory_map = self._csr_decoder.bus.memory_map
 
         self._sample_writer = SampleWriter()
         self._mic_capture_regs = MicCaptureRegs(o_domain="mic_capture")
@@ -126,6 +124,8 @@ class Top(Component):
         self._csr_decoder.add(self._system_regs.csr_bus, addr=8)
 
         super().__init__() # initialize component and attributes from signature
+
+        self.csr_bus.memory_map = self._csr_decoder.bus.memory_map
 
     def elaborate(self, platform):
         m = Module()

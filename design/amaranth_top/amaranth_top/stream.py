@@ -87,13 +87,13 @@ class SampleWriter(Component):
         reg_map.add_register(self._swap_state, name="swap_state")
         reg_map.add_register(self._swap_addr, name="swap_addr")
 
-        # TODO: gross and possibly illegal (is the memory map always the same?)
         csr_sig = self.__annotations__["csr_bus"].signature
         self._csr_bridge = csr.Bridge(reg_map, name="sample_writer",
             addr_width=csr_sig.addr_width, data_width=csr_sig.data_width)
-        csr_sig.memory_map = self._csr_bridge.bus.memory_map
 
         super().__init__() # initialize component and attributes from signature
+
+        self.csr_bus.memory_map = self._csr_bridge.bus.memory_map
 
     def elaborate(self, platform):
         m = Module()
