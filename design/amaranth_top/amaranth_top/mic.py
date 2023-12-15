@@ -3,7 +3,7 @@ from amaranth.lib.wiring import Component, In, Out, connect, flipped
 from amaranth.lib.cdc import FFSynchronizer
 
 from amaranth_soc import csr
-from amaranth_soc.csr import field as csr_field
+from amaranth_soc.csr import field as csr_field, Field
 
 from .constants import NUM_MICS, CAP_DATA_BITS
 from .stream import SampleStream
@@ -203,10 +203,10 @@ class MicCaptureRegs(Component):
     use_fake_mics: Out(1)
 
     class Gain(csr.Register):
-        gain: csr_field.RW(8)
+        gain: Field(csr_field.RW, 8)
 
     class FakeMics(csr.Register):
-        use_fake_mics: csr_field.RW(1)
+        use_fake_mics: Field(csr_field.RW, 1)
 
     def __init__(self, *, o_domain):
         self._o_domain = o_domain

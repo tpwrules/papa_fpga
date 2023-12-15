@@ -5,7 +5,7 @@ from amaranth.lib.wiring import Component, In, Out, connect, flipped
 from amaranth.lib.cdc import FFSynchronizer
 
 from amaranth_soc import csr
-from amaranth_soc.csr import field as csr_field
+from amaranth_soc.csr import field as csr_field, Field
 
 import numpy as np
 
@@ -42,18 +42,18 @@ class SystemRegs(Component):
 
     class SysParams1(csr.Register):
         # TODO: use reset value once that's supported
-        num_mics: csr_field.R(8)
-        num_chans: csr_field.R(8)
-        num_taps: csr_field.R(8)
+        num_mics: Field(csr_field.R, 8)
+        num_chans: Field(csr_field.R, 8)
+        num_taps: Field(csr_field.R, 16)
 
     class SysParams2(csr.Register):
         # TODO: use reset value once that's supported
-        mic_freq_hz: csr_field.R(16)
+        mic_freq_hz: Field(csr_field.R, 8)
 
     class RawDataCtrl(csr.Register):
         # 1 to store raw mic data, 0 to store convolved data. the switch is
         # nowhere near clean
-        store_raw_data: csr_field.RW(1)
+        store_raw_data: Field(csr_field.RW, 1)
 
     def __init__(self):
         self._sys_params_1 = self.SysParams1()
