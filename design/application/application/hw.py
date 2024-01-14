@@ -4,6 +4,8 @@ import time
 
 import numpy as np
 
+from .volatile import VolatileU32Array
+
 class HW:
     def __init__(self):
         # open file descriptors to memory so we can map it. one is sync
@@ -30,8 +32,8 @@ class HW:
 
         # expose as two regions of signed 16 bit words
         self.d = np.frombuffer(self._buf_mmap, dtype=np.int16).reshape(2, -1)
-        # expose as uint32 register data
-        self.r = np.frombuffer(self._reg_mmap, dtype=np.uint32)
+        # expose uint32 register data through volatile pointer
+        self.r = VolatileU32Array(memoryview(self._reg_mmap).cast('L'))
 
         self._closed = False
 

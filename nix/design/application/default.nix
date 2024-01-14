@@ -1,6 +1,7 @@
 { buildPythonApplication
 , setuptools
 , numpy
+, cython_3
 }:
 
 buildPythonApplication {
@@ -9,7 +10,7 @@ buildPythonApplication {
 
   src = ./../../../design/application;
 
-  nativeBuildInputs = [ setuptools ];
+  nativeBuildInputs = [ setuptools cython_3 ];
 
   propagatedBuildInputs = [
     numpy
