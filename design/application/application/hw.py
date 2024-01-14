@@ -45,8 +45,8 @@ class HW:
             raise ValueError("test register not responding")
 
         # read system parameters
-        p1 = int(self.r[8])
-        p2 = int(self.r[9])
+        p1 = self.r[8]
+        p2 = self.r[9]
         self.num_mics = p1 & 0xFF
         self.num_chans = (p1 >> 8) & 0xFF
         self.num_taps = (p1 >> 16) & 0xFF
@@ -65,8 +65,8 @@ class HW:
         # loop until it occurs (at about 48KHz so no point sleeping)
         while (status := self.r[2]) & 1: pass
 
-        which = (int(status) >> 1) & 1 # which buffer did we swap from?
-        where = int(self.r[3]) # what was the last address in that buffer?
+        which = (status >> 1) & 1 # which buffer did we swap from?
+        where = self.r[3] # what was the last address in that buffer?
         return (which, where)
 
     def get_data(self):
