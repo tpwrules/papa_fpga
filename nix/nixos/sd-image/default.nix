@@ -99,7 +99,7 @@
     design.application
 
     (python3.withPackages (p: [
-      p.numpy-old
+      p.numpy
     ]))
   ];
 

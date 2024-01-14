@@ -7,9 +7,6 @@ final: prev: {
 
   pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
     (python-final: python-prev: {
-      # latest numpy is broken for cross
-      numpy-old = (python-final.callPackage ./packages/numpy-1.25.1 {});
-
       # upgrade to latest version
       amaranth = (python-prev.amaranth.overrideAttrs (o: {
         version = "0.4.0";
