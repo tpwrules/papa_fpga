@@ -20,13 +20,13 @@ final: prev: {
       }));
 
       amaranth-soc = (python-prev.amaranth-soc.overrideAttrs (o: {
-        version = "unstable-2023-12-15-pr-40";
+        version = "unstable-2024-01-12-pr-40";
 
         src = final.fetchFromGitHub {
           owner = "amaranth-lang";
           repo = "amaranth-soc";
-          rev = "be1f028af8573ac985b7c6fa1b8360a7e6a41f49";
-          hash = "sha256-XKSGBSwu415oEayv3gQfZePgkeSQQYeUuzchcK3QqLU=";
+          rev = "24e7ee7a75d516d948de25e4e5946c41ce505f18";
+          hash = "sha256-QG2uA/OYmEAUzp7VACzoF/RFwPGZcFEzJPzTrgyAUkE=";
           # files change depending on github PR status
           postFetch = "rm -f $out/.git_archival.txt $out/.gitattributes";
         };
