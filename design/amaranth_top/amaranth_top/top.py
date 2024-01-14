@@ -44,11 +44,11 @@ class SystemRegs(Component):
         # TODO: use reset value once that's supported
         num_mics: Field(csr_field.R, 8)
         num_chans: Field(csr_field.R, 8)
-        num_taps: Field(csr_field.R, 16)
+        num_taps: Field(csr_field.R, 8)
 
     class SysParams2(csr.Register):
         # TODO: use reset value once that's supported
-        mic_freq_hz: Field(csr_field.R, 8)
+        mic_freq_hz: Field(csr_field.R, 16)
 
     class RawDataCtrl(csr.Register):
         # 1 to store raw mic data, 0 to store convolved data. the switch is
