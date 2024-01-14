@@ -3,7 +3,7 @@ from amaranth.lib.wiring import Component, In, Out, Signature, connect, flipped
 from amaranth.lib.fifo import AsyncFIFO
 
 from amaranth_soc import csr
-from amaranth_soc.csr import field as csr_field, Field
+from amaranth_soc.csr import Field
 
 from .bus import AudioRAMBus
 from .constants import CAP_DATA_BITS
@@ -60,20 +60,20 @@ class SampleWriter(Component):
 
     status_leds: Out(3)
 
-    class Test(csr.Register):
+    class Test(csr.Register, access="rw"):
         # read/write area for testing
-        test: Field(csr_field.RW, 32)
+        test: Field(csr.action.RW, 32)
 
-    class Dummy(csr.Register): # just to keep ordering for now
-        dummy: Field(csr_field.R, 32)
+    class Dummy(csr.Register, access="r"): # just to keep ordering for now
+        dummy: Field(csr.action.R, 32)
 
-    class SwapState(csr.Register):
-        swap: Field(csr_field.RW1S, 1) # request swap/swap status
-        last_buf: Field(csr_field.R, 1) # last buffer swapped from
+    class SwapState(csr.Register, access="rw"):
+        swap: Field(csr.action.RW1S, 1) # request swap/swap status
+        last_buf: Field(csr.action.R, 1) # last buffer swapped from
 
-    class SwapAddr(csr.Register):
+    class SwapAddr(csr.Register, access="r"):
         # last address in the buffer swapped from
-        last_addr: Field(csr_field.R, 32)
+        last_addr: Field(csr.action.R, 32)
 
     def __init__(self):
         self._test = self.Test()
