@@ -38,7 +38,7 @@ class HW:
         self._closed = False
 
         # access test register to make sure the bus seems alive
-        val = int(self.r[0])
+        val = self.r[0]
         val = ((val + 0x1234) * 3) & 0xFFFF_FFFF # permute the value somehow
         self.r[0] = val
         if self.r[0] != val:
