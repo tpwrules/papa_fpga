@@ -1,6 +1,6 @@
 {
   # ideally nixos-unstable
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/c757e9bd77b16ca2e03c89bf8bc9ecb28e0c06ad";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
   outputs = { self, nixpkgs }: let
     flakeInputs = { inherit nixpkgs; };
