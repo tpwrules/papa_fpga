@@ -5,32 +5,54 @@ final: prev: {
 
   intel-socfpga-hwlib = final.callPackage ./packages/intel-socfpga-hwlib {};
 
-  pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
+  pythonPackagesExtensions = let
+    amaranth-soc =
+      { lib
+      , buildPythonPackage
+      , fetchFromGitHub
+      , amaranth
+      , pdm-backend
+      }:
+
+      buildPythonPackage rec {
+        pname = "amaranth-soc";
+        version = "0.0.1"; # ugh pdm: unstable-2024-02-08-pr-40
+        format = "pyproject";
+
+        src = fetchFromGitHub {
+          owner = "amaranth-lang";
+          repo = "amaranth-soc";
+          rev = "c1dd5804c97bcbf8daf769c28c36d31526d92fc0";
+          hash = "sha256-u0lfETKloKZjQa6Vjkm1SJPti1VvJAJH4LuF9KUScfw=";
+          # files change depending on github PR status
+          postFetch = "rm -f $out/.git_archival.txt $out/.gitattributes";
+        };
+
+        nativeBuildInputs = [ pdm-backend ];
+        propagatedBuildInputs = [ amaranth ];
+
+        meta = with lib; {
+          description = "System on Chip toolkit for Amaranth HDL";
+          homepage = "https://github.com/amaranth-lang/amaranth-soc";
+          license = licenses.bsd2;
+          maintainers = with maintainers; [ emily thoughtpolice ];
+        };
+      };
+  in prev.pythonPackagesExtensions ++ [
     (python-final: python-prev: {
       # upgrade to latest version
       amaranth = (python-prev.amaranth.overrideAttrs (o: {
-        version = "0.4.0";
+        version = "0.4.1"; # unstable-2024-01-22
 
         src = final.fetchFromGitHub {
           owner = "amaranth-lang";
           repo = "amaranth";
-          rev = "v0.4.0";
-          hash = "sha256-dC+yFPZnKzTYrzzzoPXGbsc0i+Bhh80d/7ngjp8SQdc=";
+          rev = "b3639c4cc5938148bbd114aa9efbd410d2893824";
+          hash = "sha256-zq7r53UUQ3kAXbiTm5ZHWG+xtjEBg07oiuQeZ9UG4Ds=";
         };
       }));
 
-      amaranth-soc = (python-prev.amaranth-soc.overrideAttrs (o: {
-        version = "unstable-2024-01-12-pr-40";
-
-        src = final.fetchFromGitHub {
-          owner = "amaranth-lang";
-          repo = "amaranth-soc";
-          rev = "24e7ee7a75d516d948de25e4e5946c41ce505f18";
-          hash = "sha256-QG2uA/OYmEAUzp7VACzoF/RFwPGZcFEzJPzTrgyAUkE=";
-          # files change depending on github PR status
-          postFetch = "rm -f $out/.git_archival.txt $out/.gitattributes";
-        };
-      }));
+      amaranth-soc = python-final.callPackage amaranth-soc {};
     })
   ];
 
