@@ -16,16 +16,14 @@ final: prev: {
 
       buildPythonPackage rec {
         pname = "amaranth-soc";
-        version = "0.0.1"; # ugh pdm: unstable-2024-02-08-pr-40
+        version = "0.0.1"; # ugh pdm: unstable-2024-02-09
         format = "pyproject";
 
         src = fetchFromGitHub {
           owner = "amaranth-lang";
           repo = "amaranth-soc";
-          rev = "c1dd5804c97bcbf8daf769c28c36d31526d92fc0";
-          hash = "sha256-u0lfETKloKZjQa6Vjkm1SJPti1VvJAJH4LuF9KUScfw=";
-          # files change depending on github PR status
-          postFetch = "rm -f $out/.git_archival.txt $out/.gitattributes";
+          rev = "1e1490ef85433493b9c43050eae8925ec85b2a53";
+          hash = "sha256-0eyWuS05E5OtbswROSlYj4CrR1ETNq7W3ub3mJn1AU8=";
         };
 
         nativeBuildInputs = [ pdm-backend ];
