@@ -60,14 +60,14 @@ class SystemRegs(Component):
         self._sys_params_2 = self.SysParams2()
         self._raw_data_ctrl = self.RawDataCtrl()
 
-        reg_map = csr.RegisterMap()
-        reg_map.add_register(self._sys_params_1, name="sys_params_1")
-        reg_map.add_register(self._sys_params_2, name="sys_params_2")
-        reg_map.add_register(self._raw_data_ctrl, name="raw_data_ctrl")
-
         csr_sig = self.__annotations__["csr_bus"].signature
-        self._csr_bridge = csr.Bridge(reg_map, name="system_regs",
+        builder = csr.Builder(
             addr_width=csr_sig.addr_width, data_width=csr_sig.data_width)
+        builder.add("sys_params_1", self._sys_params_1)
+        builder.add("sys_params_2", self._sys_params_2)
+        builder.add("raw_data_ctrl", self._raw_data_ctrl)
+
+        self._csr_bridge = csr.Bridge(builder.as_memory_map())
 
         super().__init__() # initialize component and attributes from signature
 

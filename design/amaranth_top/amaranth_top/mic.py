@@ -214,13 +214,13 @@ class MicCaptureRegs(Component):
         self._gain = self.Gain()
         self._fake_mics = self.FakeMics()
 
-        reg_map = csr.RegisterMap()
-        reg_map.add_register(self._gain, name="gain")
-        reg_map.add_register(self._fake_mics, name="fake_mics")
-
         csr_sig = self.__annotations__["csr_bus"].signature
-        self._csr_bridge = csr.Bridge(reg_map, name="mic_capture",
+        builder = csr.Builder(
             addr_width=csr_sig.addr_width, data_width=csr_sig.data_width)
+        builder.add("gain", self._gain)
+        builder.add("fake_mics", self._fake_mics)
+
+        self._csr_bridge = csr.Bridge(builder.as_memory_map())
 
         super().__init__() # initialize component and attributes from signature
 

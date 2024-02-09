@@ -81,15 +81,15 @@ class SampleWriter(Component):
         self._swap_state = self.SwapState()
         self._swap_addr = self.SwapAddr()
 
-        reg_map = csr.RegisterMap()
-        reg_map.add_register(self._test, name="test")
-        reg_map.add_register(self._dummy, name="dummy")
-        reg_map.add_register(self._swap_state, name="swap_state")
-        reg_map.add_register(self._swap_addr, name="swap_addr")
-
         csr_sig = self.__annotations__["csr_bus"].signature
-        self._csr_bridge = csr.Bridge(reg_map, name="sample_writer",
+        builder = csr.Builder(
             addr_width=csr_sig.addr_width, data_width=csr_sig.data_width)
+        builder.add("test", self._test)
+        builder.add("dummy", self._dummy)
+        builder.add("swap_state", self._swap_state)
+        builder.add("swap_addr", self._swap_addr)
+
+        self._csr_bridge = csr.Bridge(builder.as_memory_map())
 
         super().__init__() # initialize component and attributes from signature
 
