@@ -40,13 +40,14 @@ class SignalPipeline(Elaboratable):
         self._put_times = {} # times those signals have been put in
         self._get_signal_vals = {} # list of signal values at each time
         self._get_signal_ids = set() # set of signal IDs that have been got
+        self._sig_times = {} # dict of times each signal has been put/got
 
         self._get_signal_dsts = [] # list of (dst, sig) pairs for got signals
 
         for signal in signals:
             self.put(0, src=signal) # put the given signals into the pipeline
 
-    def put(self, t, src):
+    def put(self, t, src, *, rel=None):
         """Put the Signal `src` into the pipeline at the given time.
 
         The signal must not have been previously put into the pipeline or gotten
@@ -55,28 +56,38 @@ class SignalPipeline(Elaboratable):
         Parameters
         ----------
         t : int
-            Non-negative integer representing time the signal is to be put.
+            Integer representing time the signal is to be put.
             Signal will be available to get at all times >= t.
         src : Signal(), in
             Signal to be put.
+        rel : Signal(), optional
+            Signal from whose put/get time the given t will be relative to. If
+            None, then relative to t=0. Signals that have been previously
+            passed to/returned from put or get are valid here.
         """
         if self._elaborated:
             raise RuntimeError("already elaborated")
         if not isinstance(src, Signal):
             raise TypeError("src must be Signal")
-        if not isinstance(t, int) or t < 0:
-            raise TypeError(f"t must be non-negative integer, not {t}")
+        if not isinstance(t, int):
+            raise TypeError(f"t must be integer, not {t}")
 
         sid = id(src)
         if sid in self._get_signal_ids:
             raise ValueError("signal is one that has been previously gotten")
         if sid in self._put_signals:
             raise ValueError("signal has previously been put")
+        if rel is not None:
+            rel_t = self._sig_times.get(id(rel))
+            if rel_t is None:
+                raise ValueError("relative signal not known")
+            t += rel_t
 
         self._put_signals[sid] = src
         self._put_times[sid] = t
+        self._sig_times[sid] = t
 
-    def get(self, t, src, *, dst=None):
+    def get(self, t, src, *, dst=None, rel=None):
         """Get the Signal `src`'s value from the pipeline at the given time.
 
         The signal must have been previously put into the pipeline.
@@ -89,6 +100,10 @@ class SignalPipeline(Elaboratable):
             Signal originally put in whose eventual value is to be gotten.
         dst : Signal(), out, optional
             Signal to combinationally assign the value to.
+        rel : Signal(), optional
+            Signal from whose put/get time the given t will be relative to. If
+            None, then relative to t=0. Signals that have been previously
+            passed to/returned from put or get are valid here.
         
         Returns
         -------
@@ -99,12 +114,17 @@ class SignalPipeline(Elaboratable):
             raise RuntimeError("already elaborated")
         if not isinstance(src, Signal):
             raise TypeError("src must be Signal")
-        if not isinstance(t, int) or t < 0:
-            raise TypeError(f"t must be non-negative integer, not {t}")
+        if not isinstance(t, int):
+            raise TypeError(f"t must be integer, not {t}")
 
         sid = id(src)
         if sid not in self._put_signals:
             raise ValueError("signal has not previously been put")
+        if rel is not None:
+            rel_t = self._sig_times.get(id(rel))
+            if rel_t is None:
+                raise ValueError("relative signal not known")
+            t += rel_t
         put_time = self._put_times[sid]
         if t < put_time:
             raise ValueError(f"signal got at {t} but was put at {put_time}")
@@ -122,6 +142,8 @@ class SignalPipeline(Elaboratable):
             dst = time_vals[t-put_time]
         else:
             self._get_signal_dsts.append((dst, time_vals[t-put_time]))
+            self._sig_times[id(time_vals[t-put_time])] = t
+        self._sig_times[id(dst)] = t
         return dst
 
     def elaborate(self, platform):
