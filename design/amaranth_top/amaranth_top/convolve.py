@@ -204,22 +204,23 @@ class ChannelProcessor(Component):
         coeff_index = self.coeff_index
         sp = SignalPipeline(clear_accum, curr_sample, coeff_index)
 
-        # set up RAM
+        # set up RAM with one cycle of latency from pipeline start for timing
         sp.get(+1, coeff_index, dst=coeff_r.addr, rel=coeff_index)
         sp.put(+1, coeff_r.data, rel=coeff_r.addr) # one cycle of read latency
 
         # set up DSP block to do our multiply-accumulate
         m.submodules.mac = mac = DSPMACBlock()
-        # interface with pipeline. we put the memory coefficient in the B port
+        # interface with pipeline with one cycle of latency from RAM data
+        # retrieval for timing. we put the memory coefficient in the B port
         # since that's one bit wider and we want that extra bit
-        sp.get(+0, coeff_r.data, dst=mac.mul_b, rel=coeff_r.data)
+        sp.get(+1, coeff_r.data, dst=mac.mul_b, rel=coeff_r.data)
         sp.get(+0, curr_sample, dst=mac.mul_a, rel=mac.mul_b) # same time as
         sp.get(+0, clear_accum, dst=mac.clear, rel=mac.mul_b) # coeff input
         sp.put(+1, mac.result, rel=mac.mul_b) # one cycle of computation latency
 
-        # hook up (truncated) output
+        # hook up (truncated) output with one cycle of latency from result
         sample_out = Signal.like(mac.result)
-        sp.get(+0, mac.result, dst=sample_out, rel=mac.result)
+        sp.get(+1, mac.result, dst=sample_out, rel=mac.result)
         m.d.comb += self.sample_out.eq(sample_out[self._trunc_bits:])
         # and new flag (which is true when the MAC clear is asserted the cycle
         # after the sample is retrieved)
