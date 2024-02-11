@@ -1,6 +1,6 @@
 from amaranth import *
 from amaranth.lib.wiring import Component, In, Out, connect, flipped
-from amaranth.utils import log2_int
+from amaranth.utils import ceil_log2
 
 import numpy as np
 
@@ -35,7 +35,7 @@ class Sequencer(Component):
 
         # memory to store sample data
         # storage must be a power of two so that Quartus will infer BRAM
-        mem_size = 1 << log2_int(NUM_TAPS * NUM_MICS, need_pow2=False)
+        mem_size = 1 << ceil_log2(NUM_TAPS * NUM_MICS)
         sample_memory = Memory(width=CAP_DATA_BITS, depth=mem_size)
         m.submodules.samp_w = samp_w = sample_memory.write_port()
         m.submodules.samp_r = samp_r = sample_memory.read_port(
@@ -153,7 +153,7 @@ class ChannelProcessor(Component):
         # away bits, but we have to do the rest by scaling the coefficients.
         # compute the number of bits to throw away (which will be too few)
         # then reduce the coefficients to do the rest.
-        num_mic_bits = log2_int(NUM_MICS, need_pow2=False) # could be too many
+        num_mic_bits = ceil_log2(NUM_MICS) # could be too many
         if NUM_MICS == 1 << num_mic_bits:
             num_mic_frac = 1 # don't need to scale coefficients
         else:
@@ -168,8 +168,7 @@ class ChannelProcessor(Component):
         # (CAP_DATA_BITS+2).(COEFF_BITS-2) or a total bit quantity of
         # CAP_DATA_BITS+COEFF_BITS. we intend to sum NUM_TAPS*NUM_MICS
         # of them, so we need enough bits for that too
-        total_bits = CAP_DATA_BITS + COEFF_BITS + \
-            log2_int(NUM_TAPS * NUM_MICS, need_pow2=False)
+        total_bits = CAP_DATA_BITS + COEFF_BITS + ceil_log2(NUM_TAPS * NUM_MICS)
         assert total_bits <= 64 # accumulator size
 
         # scale coefficients to do the rest of the division by num_mics
@@ -201,7 +200,7 @@ class ChannelProcessor(Component):
         ]
 
         # RAM to hold coefficients
-        mem_size = 1 << log2_int(NUM_TAPS * NUM_MICS, need_pow2=False)
+        mem_size = 1 << ceil_log2(NUM_TAPS * NUM_MICS)
         coeff_memory = Memory(
             width=COEFF_BITS, depth=mem_size, init=self._coeff_rom_data)
         m.submodules.coeff_r = coeff_r = coeff_memory.read_port(
