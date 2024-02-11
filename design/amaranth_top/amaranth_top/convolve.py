@@ -6,6 +6,7 @@ import numpy as np
 
 from .constants import NUM_MICS, CAP_DATA_BITS, NUM_CHANS, NUM_TAPS
 from .stream import SampleStream, SampleStreamFIFO
+from .misc import SignalPipeline
 
 COEFF_BITS = 19 # multiplier supports 18x19 mode
 
@@ -205,27 +206,33 @@ class ChannelProcessor(Component):
             width=COEFF_BITS, depth=mem_size, init=self._coeff_rom_data)
         m.submodules.coeff_r = coeff_r = coeff_memory.read_port(
             transparent=False)
-        m.d.comb += [
-            coeff_r.en.eq(1), # always reading
-            coeff_r.addr.eq(coeff_index), # from the given index
-        ]
+        m.d.comb += coeff_r.en.eq(1) # always reading
+
+        # put control and data signals into the pipeline
+        sp = SignalPipeline(clear_accum, curr_sample, coeff_index)
+
+        # set up RAM, which has one cycle of read latency
+        m.d.comb += coeff_r.addr.eq(sp.get(0, coeff_index))
+        sp.put(1, coeff_r.data)
 
         # set up DSP block to do our multiply-accumulate
         m.submodules.mac = mac = DSPMACBlock()
-        # memory delays by one cycle and we put the coefficient in the B port
+        # interface with pipeline. we put the memory coefficient in the B port
         # since that's one bit wider and we want that extra bit
-        m.d.sync += mac.mul_a.eq(curr_sample)
-        m.d.comb += mac.mul_b.eq(coeff_r.data)
-        # clear is in effect synchronous since we are using that to delay
-        m.d.sync += mac.clear.eq(clear_accum)
+        m.d.comb += [
+            mac.mul_a.eq(sp.get(1, curr_sample)),
+            mac.mul_b.eq(sp.get(1, coeff_r.data)),
+            mac.clear.eq(sp.get(1, clear_accum)),
+        ]
+        sp.put(2, mac.result) # one cycle of computation latency
 
         # hook up (truncated) output
-        m.d.comb += self.sample_out.eq(mac.result[self._trunc_bits:])
-        # and synchronized new flag (which is the cycle the clear input of the
-        # accumulator is asserted)
-        sample_new = Signal()
-        m.d.comb += sample_new.eq(~mac.clear & clear_accum)
-        m.d.sync += self.sample_new.eq(sample_new)
+        m.d.comb += self.sample_out.eq(sp.get(2, mac.result)[self._trunc_bits:])
+        # and new flag (which is the cycle the clear is asserted to the MAC)
+        m.d.comb += self.sample_new.eq(
+            ~sp.get(2, clear_accum) & sp.get(1, clear_accum))
+
+        m.submodules.sp = sp
 
         return m
 
