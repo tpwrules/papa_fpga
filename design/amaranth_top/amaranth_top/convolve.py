@@ -212,18 +212,16 @@ class ChannelProcessor(Component):
         sp = SignalPipeline(clear_accum, curr_sample, coeff_index)
 
         # set up RAM, which has one cycle of read latency
-        m.d.comb += coeff_r.addr.eq(sp.get(0, coeff_index))
+        sp.get(0, coeff_index, dst=coeff_r.addr)
         sp.put(1, coeff_r.data)
 
         # set up DSP block to do our multiply-accumulate
         m.submodules.mac = mac = DSPMACBlock()
         # interface with pipeline. we put the memory coefficient in the B port
         # since that's one bit wider and we want that extra bit
-        m.d.comb += [
-            mac.mul_a.eq(sp.get(1, curr_sample)),
-            mac.mul_b.eq(sp.get(1, coeff_r.data)),
-            mac.clear.eq(sp.get(1, clear_accum)),
-        ]
+        sp.get(1, curr_sample, dst=mac.mul_a)
+        sp.get(1, coeff_r.data, dst=mac.mul_b)
+        sp.get(1, clear_accum, dst=mac.clear)
         sp.put(2, mac.result) # one cycle of computation latency
 
         # hook up (truncated) output

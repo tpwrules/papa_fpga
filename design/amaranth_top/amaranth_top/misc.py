@@ -41,6 +41,8 @@ class SignalPipeline(Elaboratable):
         self._get_signal_vals = {} # list of signal values at each time
         self._get_signal_ids = set() # set of signal IDs that have been got
 
+        self._get_signal_dsts = [] # list of (dst, sig) pairs for got signals
+
         for signal in signals:
             self.put(0, src=signal) # put the given signals into the pipeline
 
@@ -74,7 +76,7 @@ class SignalPipeline(Elaboratable):
         self._put_signals[sid] = src
         self._put_times[sid] = t
 
-    def get(self, t, src):
+    def get(self, t, src, *, dst=None):
         """Get the Signal `src`'s value from the pipeline at the given time.
 
         The signal must have been previously put into the pipeline.
@@ -85,11 +87,13 @@ class SignalPipeline(Elaboratable):
             Time the signal is to be gotten.
         src : Signal(), in
             Signal originally put in whose eventual value is to be gotten.
+        dst : Signal(), out, optional
+            Signal to combinationally assign the value to.
         
         Returns
         -------
         A Signal() the same shape as `src` representing the value at the gotten
-        time.
+        time, which will be `dst` if supplied and an internal signal otherwise.
         """
         if self._elaborated:
             raise RuntimeError("already elaborated")
@@ -114,7 +118,11 @@ class SignalPipeline(Elaboratable):
             self._get_signal_ids.add(id(sig))
 
         # return the signal at the desired time
-        return time_vals[t-put_time]
+        if dst is None:
+            dst = time_vals[t-put_time]
+        else:
+            self._get_signal_dsts.append((dst, time_vals[t-put_time]))
+        return dst
 
     def elaborate(self, platform):
         m = Module()
@@ -129,5 +137,9 @@ class SignalPipeline(Elaboratable):
         for get_sigs in self._get_signal_vals.values():
             for sig_prev, sig_curr in zip(get_sigs[:-1], get_sigs[1:]):
                 m.d.sync += sig_curr.eq(sig_prev)
+
+        # hook up signal get requests
+        for dst, sig in self._get_signal_dsts:
+            m.d.comb += dst.eq(sig)
 
         return m
