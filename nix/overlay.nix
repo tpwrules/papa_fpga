@@ -3,8 +3,6 @@ final: prev: {
     supportedDevices = [ "Cyclone V" ];
   };
 
-  intel-socfpga-hwlib = final.callPackage ./packages/intel-socfpga-hwlib {};
-
   pythonPackagesExtensions = let
     amaranth-soc =
       { lib
