@@ -16,12 +16,6 @@
   sdImage.populateRootCommands = ''
     mkdir -p ./files/boot
     ${config.boot.loader.generic-extlinux-compatible.populateCmd} -c ${config.system.build.toplevel} -d ./files/boot
-
-    # use the de0 nano DTB since there is no de10 nano in mainline kernel
-    # and it seems to work okay
-    FDTDIR=$(echo ./files/boot/nixos/*-d*s) # match "dtbs" and "device-tree-overlays"
-    chmod -R u+w $FDTDIR
-    mv $FDTDIR/socfpga_cyclone5_de0_nano_soc.dtb $FDTDIR/socfpga_cyclone5_de10_nano.dtb
   '';
 
   sdImage.populateFirmwareCommands = ''
@@ -93,6 +87,20 @@
       dtsFile = ./memory-reserve.dts;
     }
   ];
+
+  boot.kernelPackages = pkgs.linuxPackagesFor (pkgs.linux.overrideAttrs (o: {
+    postInstall = (o.postInstall or "") + ''
+      # reuse de0 nano SoC dtb for de10 nano which is what u-boot looks for.
+      # seems to work okay. also delete dtbs we don't need to save space.
+      pushd $out/dtbs
+      mv socfpga_cyclone5_de0_nano_soc.dtb temp
+      rm *.dtb
+      mv temp socfpga_cyclone5_de10_nano.dtb
+      popd
+    '';
+
+    inherit (pkgs.linux) passthru; # otherwise features doesn't get propagated?
+  }));
 
   environment.systemPackages = with pkgs; [
     dtc
