@@ -63,11 +63,11 @@ in stdenv.mkDerivation rec {
     components = lib.sublist 2 ((lib.length src) - 2) src;
     copyInstaller = installer: ''
         # `$(cat $NIX_CC/nix-support/dynamic-linker) $src[0]` often segfaults, so cp + patchelf
-        cat ${installer} > $TEMP/${installer.name}
+        cp ${installer} $TEMP/${installer.name}
         chmod u+w,+x $TEMP/${installer.name}
         patchelf --interpreter $(cat $NIX_CC/nix-support/dynamic-linker) $TEMP/${installer.name}
       '';
-    copyComponent = component: "cat ${component} > $TEMP/${component.name}";
+    copyComponent = component: "cp ${component} $TEMP/${component.name}";
     # leaves enabled: quartus, modelsim_ase, devinfo
     disabledComponents = [
       "quartus_help"
