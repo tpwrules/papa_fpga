@@ -20,50 +20,57 @@ class FFDelay(Elaboratable):
 
         return m
 
-class SignalPipeline(Elaboratable):
-    """Convey signals down a pipeline through time.
+class SignalConveyor(Elaboratable):
+    """Convey signals down a conveyor belt through time.
 
-    Does not implement or otherwise foster processing logic. Actions are
-    processed in program order. Signals used are processed by Python object
-    identity.
+    A particular Amaranth Signal can be "put" onto the conveyor at time t. One
+    can then "get" that Signal at a future time T >= t. This produces another
+    Signal, which has the original Signal's value, but delayed by T-t cycles.
+
+    All Signals used/produced by the conveyor are identified by Python object
+    identity. The conveyor knows whether each particular Signal was put or
+    gotten, and at what time.
+
+    Does not implement or otherwise foster processing logic. Put/get actions are
+    processed in program execution order.
 
     Parameters
     ----------
-    *signals : tuple of Signal(n), in
-        Signals to be put into the pipeline at t=0.
+    *signals : tuple of Signal(), in
+        Signals to put onto the conveyor at t=0. This is purely a convenience;
+        Signals given here have no special significance.
     """
     def __init__(self, *signals):
         self._elaborated = False
 
-        # all dicts keyed by put signal identity
-        self._put_signals = {} # dict of signals that have been put
-        self._put_times = {} # times those signals have been put in
-        self._get_signal_vals = {} # list of signal values at each time
-        self._get_signal_ids = set() # set of signal IDs that have been got
-        self._sig_times = {} # dict of times each signal has been put/got
+        # all dicts keyed by put Signal identity
+        self._put_signals = {} # Signals that have been put
+        self._put_times = {} # times those Signals have been put on
+        self._get_signal_vals = {} # list of Signals having value at each time
+        self._sig_times = {} # time each Signal has been put/got
 
-        self._get_signal_dsts = [] # list of (dst, sig) pairs for got signals
+        self._get_signal_ids = set() # set of Signal IDs that have been got
+        self._get_signal_dsts = [] # list of (dst, sig) pairs for got Signals
 
         for signal in signals:
-            self.put(0, src=signal) # put the given signals into the pipeline
+            self.put(0, src=signal) # put the given Signals onto the conveyor
 
     def put(self, t, src, *, rel=None):
-        """Put the Signal `src` into the pipeline at the given time.
+        """Put the Signal `src` onto the conveyor at the given time t.
 
-        The signal must not have been previously put into the pipeline or gotten
-        from it.
+        The Signal must not have been previously put onto the conveyor, nor be
+        one returned from `get`.
 
         Parameters
         ----------
         t : int
-            Integer representing time the signal is to be put.
-            Signal will be available to get at all times >= t.
+            Time t to put the Signal. Signal is gettable at all T >= t.
         src : Signal(), in
-            Signal to be put.
+            Signal to put.
         rel : Signal(), optional
-            Signal from whose put/get time the given t will be relative to. If
-            None, then relative to t=0. Signals that have been previously
-            passed to/returned from put or get are valid here.
+            Signal from whose put/get time the given t is relative. If None,
+            then relative to time 0. Any Signal that was previously
+            passed to/returned from put or get is valid here.
         """
         if self._elaborated:
             raise RuntimeError("already elaborated")
@@ -87,35 +94,37 @@ class SignalPipeline(Elaboratable):
         self._put_times[sid] = t
         self._sig_times[sid] = t
 
-    def get(self, t, src, *, dst=None, rel=None):
-        """Get the Signal `src`'s value from the pipeline at the given time.
+    def get(self, T, src, *, dst=None, rel=None):
+        """Get the Signal `src`'s value from the conveyor at the given time T.
 
-        The signal must have been previously put into the pipeline.
+        That Signal must have been previously put onto the conveyor at time t.
+        The gotten Signal has `src`'s value, delayed by T-t cycles. This delay
+        must be non-negative.
 
         Parameters
         ----------
-        t : int
-            Time the signal is to be gotten.
+        T : int
+            Time T at which to get the Signal.
         src : Signal(), in
-            Signal originally put in whose eventual value is to be gotten.
+            Signal originally put on whose delayed value will be gotten.
         dst : Signal(), out, optional
-            Signal to combinationally assign the value to.
+            Signal to combinationally assign the gotten value to.
         rel : Signal(), optional
-            Signal from whose put/get time the given t will be relative to. If
-            None, then relative to t=0. Signals that have been previously
-            passed to/returned from put or get are valid here.
-        
+            Signal from whose put/get time the given T is relative. If None,
+            then relative to time 0. Any Signal that was previously
+            passed to/returned from put or get is valid here.
+
         Returns
         -------
-        A Signal() the same shape as `src` representing the value at the gotten
-        time, which will be `dst` if supplied and an internal signal otherwise.
+        A Signal like `src` having `src`'s value at the gotten time. This is
+        `dst` if supplied; otherwise it's an internally generated Signal.
         """
         if self._elaborated:
             raise RuntimeError("already elaborated")
         if not isinstance(src, Signal):
             raise TypeError("src must be Signal")
-        if not isinstance(t, int):
-            raise TypeError(f"t must be integer, not {t}")
+        if not isinstance(T, int):
+            raise TypeError(f"T must be integer, not {t}")
 
         sid = id(src)
         if sid not in self._put_signals:
@@ -124,13 +133,13 @@ class SignalPipeline(Elaboratable):
             rel_t = self._sig_times.get(id(rel))
             if rel_t is None:
                 raise ValueError("relative signal not known")
-            t += rel_t
+            T += rel_t
         put_time = self._put_times[sid]
-        if t < put_time:
-            raise ValueError(f"signal got at {t} but was put at {put_time}")
+        if T < put_time:
+            raise ValueError(f"signal got at {T} but was put at {put_time}")
 
         time_vals = self._get_signal_vals.setdefault(sid, [])
-        while len(time_vals) < t-put_time+1:
+        while len(time_vals) < T-put_time+1:
             # generate signals up to the requested time
             sig = Signal.like(src, name=src.name+f"_t{len(time_vals)+put_time}")
             time_vals.append(sig)
@@ -138,12 +147,13 @@ class SignalPipeline(Elaboratable):
             self._get_signal_ids.add(id(sig))
 
         # return the signal at the desired time
+        desired = time_vals[T-put_time]
         if dst is None:
-            dst = time_vals[t-put_time]
+            dst = desired
         else:
-            self._get_signal_dsts.append((dst, time_vals[t-put_time]))
-            self._sig_times[id(time_vals[t-put_time])] = t
-        self._sig_times[id(dst)] = t
+            self._get_signal_dsts.append((dst, desired))
+            self._sig_times[id(desired)] = T
+        self._sig_times[id(dst)] = T
         return dst
 
     def elaborate(self, platform):
@@ -151,16 +161,16 @@ class SignalPipeline(Elaboratable):
 
         self._elaborated = True # lock out future changes
 
-        # hook up put signals to their initial times
+        # hook up put Signals to their initial times
         for sid, sig in self._put_signals.items():
             m.d.comb += self._get_signal_vals[sid][0].eq(sig)
 
-        # hook up get signal values through time
+        # hook up gotte Signals through time
         for get_sigs in self._get_signal_vals.values():
             for sig_prev, sig_curr in zip(get_sigs[:-1], get_sigs[1:]):
                 m.d.sync += sig_curr.eq(sig_prev)
 
-        # hook up signal get requests
+        # hook up Signal get requests
         for dst, sig in self._get_signal_dsts:
             m.d.comb += dst.eq(sig)
 

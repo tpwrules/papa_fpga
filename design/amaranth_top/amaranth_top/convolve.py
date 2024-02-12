@@ -6,7 +6,7 @@ import numpy as np
 
 from .constants import NUM_MICS, CAP_DATA_BITS, NUM_CHANS, NUM_TAPS
 from .stream import SampleStream, SampleStreamFIFO
-from .misc import SignalPipeline
+from .misc import SignalConveyor
 
 COEFF_BITS = 19 # multiplier supports 18x19 mode
 
@@ -198,37 +198,37 @@ class ChannelProcessor(Component):
             transparent=False)
         m.d.comb += coeff_r.en.eq(1) # always reading
 
-        # put control and data signals into the pipeline
+        # put control and data signals onto the conveyor
         clear_accum = self.clear_accum
         curr_sample = self.curr_sample
         coeff_index = self.coeff_index
-        sp = SignalPipeline(clear_accum, curr_sample, coeff_index)
+        sc = SignalConveyor(clear_accum, curr_sample, coeff_index)
 
-        # set up RAM with one cycle of latency from pipeline start for timing
-        sp.get(+1, coeff_index, dst=coeff_r.addr, rel=coeff_index)
-        sp.put(+1, coeff_r.data, rel=coeff_r.addr) # one cycle of read latency
+        # set up RAM with one cycle of latency from conveyor start for timing
+        sc.get(+1, coeff_index, dst=coeff_r.addr, rel=coeff_index)
+        sc.put(+1, coeff_r.data, rel=coeff_r.addr) # one cycle of read latency
 
         # set up DSP block to do our multiply-accumulate
         m.submodules.mac = mac = DSPMACBlock()
-        # interface with pipeline with one cycle of latency from RAM data
+        # interface with conveyor with one cycle of latency from RAM data
         # retrieval for timing. we put the memory coefficient in the B port
         # since that's one bit wider and we want that extra bit
-        sp.get(+1, coeff_r.data, dst=mac.mul_b, rel=coeff_r.data)
-        sp.get(+0, curr_sample, dst=mac.mul_a, rel=mac.mul_b) # same time as
-        sp.get(+0, clear_accum, dst=mac.clear, rel=mac.mul_b) # coeff input
-        sp.put(+1, mac.result, rel=mac.mul_b) # one cycle of computation latency
+        sc.get(+1, coeff_r.data, dst=mac.mul_b, rel=coeff_r.data)
+        sc.get(+0, curr_sample, dst=mac.mul_a, rel=mac.mul_b) # same time as
+        sc.get(+0, clear_accum, dst=mac.clear, rel=mac.mul_b) # coeff input
+        sc.put(+1, mac.result, rel=mac.mul_b) # one cycle of computation latency
 
         # hook up (truncated) output with one cycle of latency from result
         sample_out = Signal.like(mac.result)
-        sp.get(+1, mac.result, dst=sample_out, rel=mac.result)
+        sc.get(+1, mac.result, dst=sample_out, rel=mac.result)
         m.d.comb += self.sample_out.eq(sample_out[self._trunc_bits:])
         # and new flag (which is true when the MAC clear is asserted the cycle
         # after the sample is retrieved)
         m.d.comb += self.sample_new.eq(
-            ~sp.get(+0, clear_accum, rel=sample_out)
-            & sp.get(-1, clear_accum, rel=sample_out))
+            ~sc.get(+0, clear_accum, rel=sample_out)
+            & sc.get(-1, clear_accum, rel=sample_out))
 
-        m.submodules.sp = sp
+        m.submodules.sc = sc
 
         return m
 
