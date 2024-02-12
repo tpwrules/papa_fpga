@@ -45,11 +45,9 @@ class SignalConveyor(Elaboratable):
 
         # all dicts keyed by put Signal identity
         self._put_signals = {} # Signals that have been put
-        self._put_times = {} # times those Signals have been put on
         self._get_signal_vals = {} # list of Signals having value at each time
-        self._sig_times = {} # time each Signal has been put/got
+        self._signal_times = {} # time each Signal has been put/got
 
-        self._get_signal_ids = set() # set of Signal IDs that have been got
         self._get_signal_dsts = [] # list of (dst, sig) pairs for got Signals
 
         for signal in signals:
@@ -80,19 +78,18 @@ class SignalConveyor(Elaboratable):
             raise TypeError(f"t must be integer, not {t}")
 
         sid = id(src)
-        if sid in self._get_signal_ids:
-            raise ValueError("signal is one that has been previously gotten")
         if sid in self._put_signals:
             raise ValueError("signal has previously been put")
+        if sid in self._signal_times:
+            raise ValueError("signal is one that has been previously gotten")
         if rel is not None:
-            rel_t = self._sig_times.get(id(rel))
+            rel_t = self._signal_times.get(id(rel))
             if rel_t is None:
                 raise ValueError("relative signal not known")
             t += rel_t
 
         self._put_signals[sid] = src
-        self._put_times[sid] = t
-        self._sig_times[sid] = t
+        self._signal_times[sid] = t
 
     def get(self, T, src, *, dst=None, rel=None):
         """Get the Signal `src`'s value from the conveyor at the given time T.
@@ -130,11 +127,11 @@ class SignalConveyor(Elaboratable):
         if sid not in self._put_signals:
             raise ValueError("signal has not previously been put")
         if rel is not None:
-            rel_t = self._sig_times.get(id(rel))
+            rel_t = self._signal_times.get(id(rel))
             if rel_t is None:
                 raise ValueError("relative signal not known")
             T += rel_t
-        put_time = self._put_times[sid]
+        put_time = self._signal_times[sid]
         if T < put_time:
             raise ValueError(f"signal got at {T} but was put at {put_time}")
 
@@ -143,8 +140,6 @@ class SignalConveyor(Elaboratable):
             # generate signals up to the requested time
             sig = Signal.like(src, name=src.name+f"_t{len(time_vals)+put_time}")
             time_vals.append(sig)
-            # remember it in case someone tries to put it again
-            self._get_signal_ids.add(id(sig))
 
         # return the signal at the desired time
         desired = time_vals[T-put_time]
@@ -152,8 +147,8 @@ class SignalConveyor(Elaboratable):
             dst = desired
         else:
             self._get_signal_dsts.append((dst, desired))
-            self._sig_times[id(desired)] = T
-        self._sig_times[id(dst)] = T
+            self._signal_times[id(desired)] = T
+        self._signal_times[id(dst)] = T
         return dst
 
     def elaborate(self, platform):
