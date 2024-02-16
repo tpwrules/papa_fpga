@@ -41,13 +41,11 @@ class SystemRegs(Component):
     store_raw_data: Out(1)
 
     class SysParams1(csr.Register, access="r"):
-        # TODO: use reset value once that's supported
         num_mics: Field(csr.action.R, 8)
         num_chans: Field(csr.action.R, 8)
         num_taps: Field(csr.action.R, 8)
 
     class SysParams2(csr.Register, access="r"):
-        # TODO: use reset value once that's supported
         mic_freq_hz: Field(csr.action.R, 16)
 
     class RawDataCtrl(csr.Register, access="rw"):
