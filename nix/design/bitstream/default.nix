@@ -7,26 +7,16 @@
 stdenvNoCC.mkDerivation {
   name = "bitstream";
 
-  src = lib.sources.sourceByRegex ./../../../design/bitstream [
-    "ip/?[^.]*"
-    "ip/.*\.qip$"
-    "ip/.*\.v$"
-    "[^/]*\.qpf$"
-    "[^/]*\.qsf$"
-    "[^/]*\.sdc$"
-    "[^/]*\.v$"
-    "[^/]*\.tcl$"
-  ];
+  src = "${amaranth_top}";
 
-  postUnpack = ''
-    cp -r ${amaranth_top}/* source/
-    chmod -R u+w source/
-  '';
+  nativeBuildInputs = [ quartus-prime-lite ];
 
   buildPhase = ''
     runHook preBuild
 
-    ${quartus-prime-lite}/bin/quartus_sh --flow compile *.qpf
+    pushd build
+    sh build_top.sh
+    popd
 
     runHook postBuild
   '';
@@ -35,7 +25,7 @@ stdenvNoCC.mkDerivation {
     runHook preInstall
 
     mkdir -p $out
-    cp *.sof $out/bitstream.sof
+    cp build/top.sof $out/bitstream.sof
 
     runHook postInstall
   '';

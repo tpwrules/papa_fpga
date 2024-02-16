@@ -28,7 +28,8 @@ in stdenvNoCC.mkDerivation {
     runHook preBuild
 
     mkdir -p $out
-    python3 -m amaranth_top.fpga_top $out/amaranth_top.v
+    python3 -m amaranth_top.fpga_top $out/build/
+    rm -f $out/build/*.bat # will never be executed
 
     runHook postBuild
   '';

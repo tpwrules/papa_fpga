@@ -1,6 +1,9 @@
 from amaranth import *
 from amaranth.lib.wiring import Component, In, Out, connect
 from amaranth.lib.cdc import ResetSynchronizer
+from amaranth.build import Resource, Pins, Attrs
+
+from amaranth_boards.de10_nano import DE10NanoPlatform
 
 from .top import Top
 from .constants import MIC_FREQ_HZ, NUM_MICS
@@ -11,12 +14,6 @@ from .axi3_csr import AXI3CSRBridge
 from .cyclone_v_hps import CycloneVHPS
 
 class FPGATop(Component):
-    clk50:      In(1)
-
-    blink:      Out(1)
-    status:     Out(3)
-    button:     In(1)
-
     GPIO_0_OUT: Out(2)
     GPIO_0_IN:  In(34)
     GPIO_1_OUT: Out(2)
@@ -25,13 +22,57 @@ class FPGATop(Component):
     def elaborate(self, platform):
         m = Module()
 
+        # set up basic resources
+        clk50 = platform.request("clk50", 0).i
+        blink = platform.request("led", 0).o
+        status = Cat([platform.request("led", n+1).o for n in range(3)])
+        button = platform.request("button", 0).i
+
+        # Amaranth includes the GPIO's power pins, but the original code didn't
+        def add_resources():
+            skip_pins = [11, 12, 29, 30] # 1-indexed
+            pins = []
+            skip_delta = 1
+            for pin_idx in range(36):
+                while len(skip_pins) > 0 and \
+                        pin_idx + skip_delta == skip_pins[0]:
+                    skip_delta += 1
+                    skip_pins = skip_pins[1:]
+                pins.append(pin_idx+skip_delta)
+
+            gpio_pins = list(str(p) for p in pins)
+            pgi, pgo = " ".join(gpio_pins[0:34]), " ".join(gpio_pins[34:36])
+
+            platform.add_resources([
+                Resource("gi", 0, Pins(pgi, dir="i", conn=("gpio", 0)),
+                        Attrs(IO_STANDARD="3.3-V LVTTL")),
+                Resource("go", 0, Pins(pgo, dir="o", conn=("gpio", 0)),
+                        Attrs(IO_STANDARD="3.3-V LVTTL")),
+                Resource("gi", 1, Pins(pgi, dir="i", conn=("gpio", 1)),
+                        Attrs(IO_STANDARD="3.3-V LVTTL")),
+                Resource("go", 1, Pins(pgo, dir="o", conn=("gpio", 1)),
+                        Attrs(IO_STANDARD="3.3-V LVTTL")),
+            ])
+        add_resources()
+
+        GPIO_0_OUT = Signal(2)
+        GPIO_0_IN = Signal(34)
+        GPIO_1_OUT = Signal(2)
+        GPIO_1_IN = Signal(34)
+        m.d.comb += [
+            platform.request("go", 0).o.eq(GPIO_0_OUT),
+            platform.request("go", 1).o.eq(GPIO_1_OUT),
+            GPIO_0_IN.eq(platform.request("gi", 0).i),
+            GPIO_1_IN.eq(platform.request("gi", 1).i),
+        ]
+
         # set up HPS
         hps = CycloneVHPS()
 
         # wire up main clock domain and PLL. note that all PLL outputs are
         # marked as asynchronous w.r.t. its inputs and each other in the .sdc
         m.domains.sync = sync = ClockDomain()
-        m.d.comb += sync.clk.eq(self.clk50)
+        m.d.comb += sync.clk.eq(clk50)
         main_pll = IntelPLL("50 MHz")
 
         # hook up another PLL for the convolver so the ratios work out
@@ -63,23 +104,22 @@ class FPGATop(Component):
         # wire up top module
         m.submodules.top = top = Top()
         m.d.comb += [
-            top.button_raw.eq(self.button),
-            self.blink.eq(top.blink),
-            self.status.eq(top.status_leds),
+            top.button_raw.eq(button),
+            blink.eq(top.blink),
+            status.eq(top.status_leds),
         ]
 
         # wire up microphone data bus
         m.d.comb += [
-            self.GPIO_0_OUT[1].eq(top.mic_sck),
-            self.GPIO_0_OUT[0].eq(top.mic_ws),
-            self.GPIO_1_OUT[1].eq(top.mic_sck),
-            self.GPIO_1_OUT[0].eq(top.mic_ws),
+            GPIO_0_OUT[1].eq(top.mic_sck),
+            GPIO_0_OUT[0].eq(top.mic_ws),
+            GPIO_1_OUT[1].eq(top.mic_sck),
+            GPIO_1_OUT[0].eq(top.mic_ws),
         ]
         for mpi in range(0, NUM_MICS//2, 2):
-            m.d.comb += top.mic_data_raw[mpi].eq(self.GPIO_0_IN[33-(mpi//2)])
+            m.d.comb += top.mic_data_raw[mpi].eq(GPIO_0_IN[33-(mpi//2)])
             if mpi+1 < len(top.mic_data_raw):
-                m.d.comb += top.mic_data_raw[mpi+1].eq(
-                    self.GPIO_1_IN[33-(mpi//2)])
+                m.d.comb += top.mic_data_raw[mpi+1].eq(GPIO_1_IN[33-(mpi//2)])
 
         # hook up audio RAM bus to AXI port
         m.d.comb += [
@@ -144,21 +184,17 @@ class FPGATop(Component):
 
         return m
 
-def generate():
+def gen_build():
     import sys
     from pathlib import Path
-    from amaranth.back import verilog
-    from .platform import AbbreviatedIntelPlatform
 
-    top = FPGATop()
-    with open(Path(sys.argv[1]), "w") as f:
-        f.write(verilog.convert(top,
-            platform=AbbreviatedIntelPlatform(),
-            name="amaranth_top",
-            # prevent source paths from being written into the design, in
-            # particular absolute paths!
-            strip_internal_attrs=True,
-        ))
+    plan = DE10NanoPlatform().build(FPGATop(),
+        do_build=False,
+        # prevent source paths from being written into the design, in particular
+        # absolute paths!
+        strip_internal_attrs=True)
+
+    plan.extract(Path(sys.argv[1]))
 
 if __name__ == "__main__":
-    generate()
+    gen_build()
