@@ -26,16 +26,16 @@ class FPGATop(Component):
         m = Module()
 
         # set up HPS
-        m.submodules.hps = hps = CycloneVHPS()
+        hps = CycloneVHPS()
 
         # wire up main clock domain and PLL. note that all PLL outputs are
         # marked as asynchronous w.r.t. its inputs and each other in the .sdc
         m.domains.sync = sync = ClockDomain()
         m.d.comb += sync.clk.eq(self.clk50)
-        m.submodules.main_pll = main_pll = IntelPLL("50 MHz")
+        main_pll = IntelPLL("50 MHz")
 
         # hook up another PLL for the convolver so the ratios work out
-        m.submodules.conv_pll = conv_pll = IntelPLL("50 MHz")
+        conv_pll = IntelPLL("50 MHz")
 
         # hold whole design in reset until PLL is locked
         reset = Signal()
@@ -136,6 +136,11 @@ class FPGATop(Component):
                 m.d.comb += getattr(hps.h2f_lw, name).eq(
                     getattr(csr_bridge, name))
         connect(m, csr_bridge.csr_bus, top.csr_bus)
+
+        # submodules we don't want Amaranth to elaborate until now
+        m.submodules.hps = hps
+        m.submodules.main_pll = main_pll
+        m.submodules.conv_pll = conv_pll
 
         return m
 
