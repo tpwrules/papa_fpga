@@ -141,45 +141,6 @@ wire        h2f_lw_rready                         ;//                  .rready
 
 hps_dummy hps_dummy();
 
-// not sure if mandatory
-cyclonev_hps_interface_dbg_apb debug_apb(
- .DBG_APB_DISABLE({
-    1'b0 // 0:0
-  })
-,.P_CLK_EN({
-    1'b0 // 0:0
-  })
-);
-
-// not sure if mandatory
-cyclonev_hps_interface_tpiu_trace tpiu(
- .traceclk_ctl({
-    1'b1 // 0:0
-  })
-);
-
-// not sure if mandatory
-cyclonev_hps_interface_boot_from_fpga boot_from_fpga(
- .boot_from_fpga_ready({
-    1'b0 // 0:0
-  })
-,.boot_from_fpga_on_failure({
-    1'b0 // 0:0
-  })
-,.bsel_en({
-    1'b0 // 0:0
-  })
-,.csel_en({
-    1'b0 // 0:0
-  })
-,.csel({
-    2'b01 // 1:0
-  })
-,.bsel({
-    3'b001 // 2:0
-  })
-);
-
 // FPGA to HPS interface
 cyclonev_hps_interface_fpga2hps fpga2hps(
     .port_size_config(2'd0), // 0 == 32 bits, 3 == disabled?
@@ -263,38 +224,6 @@ cyclonev_hps_interface_hps2fpga_light_weight hps2fpga_light_weight(
     .rlast(h2f_lw_rlast),
     .rvalid(h2f_lw_rvalid),
     .rready(h2f_lw_rready),
-);
-
-// not sure if mandatory
-cyclonev_hps_interface_hps2fpga hps2fpga(
- .port_size_config({
-    2'b11 // 1:0, 3 == disabled?
-  })
-);
-
-// not sure if mandatory
-cyclonev_hps_interface_fpga2sdram f2sdram(
- .cfg_cport_rfifo_map({
-    18'b000000000000000000 // 17:0
-  })
-,.cfg_axi_mm_select({
-    6'b000000 // 5:0
-  })
-,.cfg_wfifo_cport_map({
-    16'b0000000000000000 // 15:0
-  })
-,.cfg_cport_type({
-    12'b000000000000 // 11:0
-  })
-,.cfg_rfifo_cport_map({
-    16'b0000000000000000 // 15:0
-  })
-,.cfg_port_width({
-    12'b000000000000 // 11:0
-  })
-,.cfg_cport_wfifo_map({
-    18'b000000000000000000 // 17:0
-  })
 );
 
 //=======================================================
