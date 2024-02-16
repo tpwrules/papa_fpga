@@ -59,7 +59,6 @@ module de10_nano_nixos_led(
 //=======================================================
 //  REG/WIRE declarations
 //=======================================================
-wire hps_fpga_reset_n;
 wire                fpga_clk_50;
 // connection of internal logics
 assign fpga_clk_50 = FPGA_CLK1_50;
@@ -141,25 +140,6 @@ wire        h2f_lw_rvalid                         ;//                  .rvalid
 wire        h2f_lw_rready                         ;//                  .rready
 
 hps_dummy hps_dummy();
-
-// not sure if mandatory
-cyclonev_hps_interface_clocks_resets clocks_resets(
- .f2h_pending_rst_ack({
-    1'b1 // 0:0
-  })
-,.f2h_warm_rst_req_n({
-    1'b1 // 0:0
-  })
-,.f2h_dbg_rst_req_n({
-    1'b1 // 0:0
-  })
-,.h2f_rst_n({
-    hps_fpga_reset_n // 0:0
-  })
-,.f2h_cold_rst_req_n({
-    1'b1 // 0:0
-  })
-);
 
 // not sure if mandatory
 cyclonev_hps_interface_dbg_apb debug_apb(
@@ -324,7 +304,6 @@ wire blink;
 wire [2:0] status;
 amaranth_top amaranth_top(
     .clk50(fpga_clk_50),
-    .rst(~hps_fpga_reset_n),
     .blink(blink),
     .status(status),
     .button(KEY[0]),

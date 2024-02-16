@@ -8,10 +8,10 @@ from .mic import MicCapture
 from .convolve import Convolver
 from .cyclone_v_pll import IntelPLL
 from .axi3_csr import AXI3CSRBridge
+from .cyclone_v_hps import CycloneVHPS
 
 class FPGATop(Component):
     clk50:      In(1)
-    rst:        In(1)
 
     blink:      Out(1)
     status:     Out(3)
@@ -102,6 +102,9 @@ class FPGATop(Component):
     def elaborate(self, platform):
         m = Module()
 
+        # set up HPS
+        m.submodules.hps = hps = CycloneVHPS()
+
         # wire up main clock domain and PLL. note that all PLL outputs are
         # marked as asynchronous w.r.t. its inputs and each other in the .sdc
         m.domains.sync = sync = ClockDomain()
@@ -113,7 +116,8 @@ class FPGATop(Component):
 
         # hold whole design in reset until PLL is locked
         reset = Signal()
-        m.d.comb += reset.eq(self.rst & main_pll.o_locked & conv_pll.o_locked)
+        m.d.comb += reset.eq(
+            hps.h2f_rst & main_pll.o_locked & conv_pll.o_locked)
         m.submodules += ResetSynchronizer(reset)
 
         # set up mic capture domain
