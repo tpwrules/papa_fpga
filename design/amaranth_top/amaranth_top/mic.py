@@ -113,7 +113,7 @@ class FakeMic(Component):
     def elaborate(self, platform):
         m = Module()
 
-        counter = Signal(MIC_DATA_BITS, reset=self._start)
+        counter = Signal(MIC_DATA_BITS, init=self._start)
         sample = Signal(MIC_DATA_BITS)
         buffer = Signal(MIC_DATA_BITS)
 
@@ -143,7 +143,7 @@ class FakeMic(Component):
         assert len(s) == 1
 
         # avoid false triggering on first cycle of design if signal starts high
-        last = Signal(1, reset=1)
+        last = Signal(1, init=1)
         m.d.sync += last.eq(s) # only applies when conditions match where called
 
         return ~last & s
@@ -152,7 +152,7 @@ class FakeMic(Component):
         assert len(s) == 1
 
         # avoid false triggering on first cycle of design if signal starts low
-        last = Signal(1, reset=0)
+        last = Signal(1, init=0)
         m.d.sync += last.eq(s) # only applies when conditions match where called
 
         return last & ~s
