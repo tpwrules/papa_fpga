@@ -38,13 +38,13 @@ final: prev: {
     (python-final: python-prev: {
       # upgrade to latest version
       amaranth = (python-prev.amaranth.overrideAttrs (o: {
-        version = "0.4.1"; # unstable-2024-01-22
+        version = "0.0.0+unstable-2024-02-15";
 
         src = final.fetchFromGitHub {
           owner = "amaranth-lang";
           repo = "amaranth";
-          rev = "b3639c4cc5938148bbd114aa9efbd410d2893824";
-          hash = "sha256-zq7r53UUQ3kAXbiTm5ZHWG+xtjEBg07oiuQeZ9UG4Ds=";
+          rev = "24a392887af19a9d013252759ec209d5a91a378a";
+          hash = "sha256-i+TYmFZQ4C7IkZM+0zWcc1uVXE341mZS7o7U894ANik=";
         };
       }));
 
