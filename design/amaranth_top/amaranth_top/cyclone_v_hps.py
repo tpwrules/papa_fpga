@@ -151,6 +151,26 @@ class _HPS2FPGALW(AutoInstance):
     rvalid: In(1)
     rready: Out(1)
 
+# there must be an assignment in the .qsf of the form
+#   'set_instance_assignment -name hps_partition on -entity <x>'
+# this stops quartus (20.1.1.720) whining about
+#   'Warning (330000): Timing-Driven Synthesis is skipped because it could not
+#    initialize the timing netlist'
+# <x> just has to point to an extant entity; that entity doesn't even have to
+# contain any logic (but in the qsys files that entity would be
+# the "soc_system_hps_0_hps_io_border" entity that has the SDRAM and other I/O
+# ports like USB and Ethernet)
+class _HPSDummy(Elaboratable):
+    def elaborate(self, platform):
+        m = Module()
+
+        platform.add_file("hps_secret_dummy_partition_module.v",
+            "module hps_secret_dummy_partition_module(); endmodule")
+
+        m.submodules += Instance("hps_secret_dummy_partition_module")
+
+        return m
+
 class CycloneVHPS(wiring.Component):
     h2f_rst: Out(1)
 
@@ -162,6 +182,9 @@ class CycloneVHPS(wiring.Component):
 
     def elaborate(self, platform):
         m = Module()
+
+        # definitely mandatory
+        m.submodules.hps_dummy = _HPSDummy()
 
         # not sure if mandatory
         m.submodules.clocks_resets = clocks_resets = _ClocksResets()

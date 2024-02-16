@@ -205,8 +205,16 @@ def gen_build():
         }""",
     ]
 
+    # settings go in the .qsf file
+    settings = [
+        # see comment in the HPS file
+        "set_instance_assignment -name hps_partition on -entity "
+            "hps_secret_dummy_partition_module",
+    ]
+
     plan = DE10NanoPlatform().build(FPGATop(),
         add_constraints="\n".join(constraints),
+        add_settings="\n".join(settings),
         do_build=False,
         # prevent source paths from being written into the design, in particular
         # absolute paths!
