@@ -64,8 +64,101 @@ class _FPGA2SDRAM(AutoInstance):
     cfg_port_width: In(12)
     cfg_cport_wfifo_map: In(18)
 
+class _FPGA2HPS(AutoInstance):
+    _module = "cyclonev_hps_interface_fpga2hps"
+
+    port_size_config: In(2, init=0) # 0 == 32 bits, 3 == disabled?
+    clk: In(1)
+
+    awid: In(8)
+    awaddr: In(32)
+    awlen: In(4)
+    awsize: In(3)
+    awburst: In(2)
+    awlock: In(2)
+    awcache: In(4)
+    awprot: In(3)
+    awvalid: In(1)
+    awready: Out(1)
+    awuser: In(5)
+    wid: In(8)
+    wdata: In(32)
+    wstrb: In(4)
+    wlast: In(1)
+    wvalid: In(1)
+    wready: Out(1)
+    bid: Out(8)
+    bresp: Out(2)
+    bvalid: Out(1)
+    bready: In(1)
+    arid: In(8)
+    araddr: In(32)
+    arlen: In(4)
+    arsize: In(3)
+    arburst: In(2)
+    arlock: In(2)
+    arcache: In(4)
+    arprot: In(3)
+    arvalid: In(1)
+    arready: Out(1)
+    aruser: In(5)
+    rid: Out(8)
+    rdata: Out(32)
+    rresp: Out(2)
+    rlast: Out(1)
+    rvalid: Out(1)
+    rready: In(1)
+
+class _HPS2FPGALW(AutoInstance):
+    _module = "cyclonev_hps_interface_hps2fpga_light_weight"
+
+    clk: In(1)
+
+    awid: Out(12)
+    awaddr: Out(21)
+    awlen: Out(4)
+    awsize: Out(3)
+    awburst: Out(2)
+    awlock: Out(2)
+    awcache: Out(4)
+    awprot: Out(3)
+    awvalid: Out(1)
+    awready: In(1)
+    wid: Out(12)
+    wdata: Out(32)
+    wstrb: Out(4)
+    wlast: Out(1)
+    wvalid: Out(1)
+    wready: In(1)
+    bid: In(12)
+    bresp: In(2)
+    bvalid: In(1)
+    bready: Out(1)
+    arid: Out(12)
+    araddr: Out(21)
+    arlen: Out(4)
+    arsize: Out(3)
+    arburst: Out(2)
+    arlock: Out(2)
+    arcache: Out(4)
+    arprot: Out(3)
+    arvalid: Out(1)
+    arready: In(1)
+    rid: In(12)
+    rdata: In(32)
+    rresp: In(2)
+    rlast: In(1)
+    rvalid: In(1)
+    rready: Out(1)
+
 class CycloneVHPS(wiring.Component):
     h2f_rst: Out(1)
+
+    def __init__(self):
+        self.f2h_axi_s0 = _FPGA2HPS()
+        self.h2f_lw = _HPS2FPGALW()
+
+        super().__init__()
 
     def elaborate(self, platform):
         m = Module()
@@ -88,5 +181,13 @@ class CycloneVHPS(wiring.Component):
 
         # not sure if mandatory
         m.submodules.fpga2sdram = _FPGA2SDRAM()
+
+        # not sure if mandatory
+        m.submodules.fpga2hps = self.f2h_axi_s0
+        m.d.comb += self.f2h_axi_s0.clk.eq(ClockSignal())
+
+        # not mandatory
+        m.submodules.hps2fpga_light_weight = self.h2f_lw
+        m.d.comb += self.h2f_lw.clk.eq(ClockSignal())
 
         return m

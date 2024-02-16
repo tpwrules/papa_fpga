@@ -22,83 +22,6 @@ class FPGATop(Component):
     GPIO_1_OUT: Out(2)
     GPIO_1_IN:  In(34)
 
-    # copy-pasta from verilog
-    f2h_axi_s0_awid: Out(8)
-    f2h_axi_s0_awaddr: Out(32)
-    f2h_axi_s0_awlen: Out(4)
-    f2h_axi_s0_awsize: Out(3)
-    f2h_axi_s0_awburst: Out(2)
-    f2h_axi_s0_awlock: Out(2)
-    f2h_axi_s0_awcache: Out(4)
-    f2h_axi_s0_awprot: Out(3)
-    f2h_axi_s0_awvalid: Out(1)
-    f2h_axi_s0_awready: In(1)
-    f2h_axi_s0_awuser: Out(5)
-    f2h_axi_s0_wid: Out(8)
-    f2h_axi_s0_wdata: Out(32)
-    f2h_axi_s0_wstrb: Out(4)
-    f2h_axi_s0_wlast: Out(1)
-    f2h_axi_s0_wvalid: Out(1)
-    f2h_axi_s0_wready: In(1)
-    f2h_axi_s0_bid: In(8)
-    f2h_axi_s0_bresp: In(2)
-    f2h_axi_s0_bvalid: In(1)
-    f2h_axi_s0_bready: Out(1)
-    f2h_axi_s0_arid: Out(8)
-    f2h_axi_s0_araddr: Out(32)
-    f2h_axi_s0_arlen: Out(4)
-    f2h_axi_s0_arsize: Out(3)
-    f2h_axi_s0_arburst: Out(2)
-    f2h_axi_s0_arlock: Out(2)
-    f2h_axi_s0_arcache: Out(4)
-    f2h_axi_s0_arprot: Out(3)
-    f2h_axi_s0_arvalid: Out(1)
-    f2h_axi_s0_arready: In(1)
-    f2h_axi_s0_aruser: Out(5)
-    f2h_axi_s0_rid: In(8)
-    f2h_axi_s0_rdata: In(32)
-    f2h_axi_s0_rresp: In(2)
-    f2h_axi_s0_rlast: In(1)
-    f2h_axi_s0_rvalid: In(1)
-    f2h_axi_s0_rready: Out(1)
-
-    h2f_lw_awid: In(12)
-    h2f_lw_awaddr: In(21)
-    h2f_lw_awlen: In(4)
-    h2f_lw_awsize: In(3)
-    h2f_lw_awburst: In(2)
-    h2f_lw_awlock: In(2)
-    h2f_lw_awcache: In(4)
-    h2f_lw_awprot: In(3)
-    h2f_lw_awvalid: In(1)
-    h2f_lw_awready: Out(1)
-    h2f_lw_wid: In(12)
-    h2f_lw_wdata: In(32)
-    h2f_lw_wstrb: In(4)
-    h2f_lw_wlast: In(1)
-    h2f_lw_wvalid: In(1)
-    h2f_lw_wready: Out(1)
-    h2f_lw_bid: Out(12)
-    h2f_lw_bresp: Out(2)
-    h2f_lw_bvalid: Out(1)
-    h2f_lw_bready: In(1)
-    h2f_lw_arid: In(12)
-    h2f_lw_araddr: In(21)
-    h2f_lw_arlen: In(4)
-    h2f_lw_arsize: In(3)
-    h2f_lw_arburst: In(2)
-    h2f_lw_arlock: In(2)
-    h2f_lw_arcache: In(4)
-    h2f_lw_arprot: In(3)
-    h2f_lw_arvalid: In(1)
-    h2f_lw_arready: Out(1)
-    h2f_lw_rid: Out(12)
-    h2f_lw_rdata: Out(32)
-    h2f_lw_rresp: Out(2)
-    h2f_lw_rlast: Out(1)
-    h2f_lw_rvalid: Out(1)
-    h2f_lw_rready: In(1)
-
     def elaborate(self, platform):
         m = Module()
 
@@ -160,57 +83,58 @@ class FPGATop(Component):
 
         # hook up audio RAM bus to AXI port
         m.d.comb += [
-            self.f2h_axi_s0_awid.eq(0), # always write with id 0
-            self.f2h_axi_s0_awlen.eq(top.audio_ram.length),
-            self.f2h_axi_s0_awsize.eq(0b001), # two bytes at a time
-            self.f2h_axi_s0_awburst.eq(0b01), # burst mode: increment
+            hps.f2h_axi_s0.awid.eq(0), # always write with id 0
+            hps.f2h_axi_s0.awlen.eq(top.audio_ram.length),
+            hps.f2h_axi_s0.awsize.eq(0b001), # two bytes at a time
+            hps.f2h_axi_s0.awburst.eq(0b01), # burst mode: increment
             # heard vague rumors that these should just all be 1 to activate
             # caching as expected...
-            self.f2h_axi_s0_awcache.eq(0b1111),
+            hps.f2h_axi_s0.awcache.eq(0b1111),
             # and 5 1 bits for the user data too (though that is from the
             # handbook)...
-            self.f2h_axi_s0_awuser.eq(0b11111),
-            self.f2h_axi_s0_awvalid.eq(top.audio_ram.addr_valid),
-            top.audio_ram.addr_ready.eq(self.f2h_axi_s0_awready),
+            hps.f2h_axi_s0.awuser.eq(0b11111),
+            hps.f2h_axi_s0.awvalid.eq(top.audio_ram.addr_valid),
+            top.audio_ram.addr_ready.eq(hps.f2h_axi_s0.awready),
 
-            self.f2h_axi_s0_wdata.eq( # route 16 bit data to both 32 bit halves
+            hps.f2h_axi_s0.wdata.eq( # route 16 bit data to both 32 bit halves
                 Cat(top.audio_ram.data, top.audio_ram.data)),
-            self.f2h_axi_s0_wvalid.eq(top.audio_ram.data_valid),
-            self.f2h_axi_s0_wlast.eq(top.audio_ram.data_last),
-            top.audio_ram.data_ready.eq(self.f2h_axi_s0_wready),
+            hps.f2h_axi_s0.wvalid.eq(top.audio_ram.data_valid),
+            hps.f2h_axi_s0.wlast.eq(top.audio_ram.data_last),
+            top.audio_ram.data_ready.eq(hps.f2h_axi_s0.wready),
 
-            self.f2h_axi_s0_bready.eq(self.f2h_axi_s0_bvalid),
-            top.audio_ram.txn_done.eq(self.f2h_axi_s0_bvalid),
+            hps.f2h_axi_s0.bready.eq(hps.f2h_axi_s0.bvalid),
+            top.audio_ram.txn_done.eq(hps.f2h_axi_s0.bvalid),
         ]
 
         # transform 16 bit audio bus into 32 bit AXI bus
         # remove bottom two address bits to stay 32 bit aligned
-        m.d.comb += self.f2h_axi_s0_awaddr.eq(top.audio_ram.addr & 0xFFFFFFFC)
+        m.d.comb += hps.f2h_axi_s0.awaddr.eq(top.audio_ram.addr & 0xFFFFFFFC)
         curr_half = Signal() # 16 bit half of the 32 bit word we're writing
-        with m.If(self.f2h_axi_s0_awvalid & self.f2h_axi_s0_awready):
+        with m.If(hps.f2h_axi_s0.awvalid & hps.f2h_axi_s0.awready):
             # latch which half we are writing initially
             m.d.sync += curr_half.eq(top.audio_ram.addr[1])
-        with m.If(self.f2h_axi_s0_wvalid & self.f2h_axi_s0_wready):
+        with m.If(hps.f2h_axi_s0.wvalid & hps.f2h_axi_s0.wready):
             # swap halves after every write
             m.d.sync += curr_half.eq(~curr_half)
         # set strobes to enable low or high bytes according to current half
-        m.d.comb += self.f2h_axi_s0_wstrb.eq(Mux(curr_half, 0b1100, 0b0011))
+        m.d.comb += hps.f2h_axi_s0.wstrb.eq(Mux(curr_half, 0b1100, 0b0011))
 
         # plug off AXI port address write and read data ports
         m.d.comb += [
-            self.f2h_axi_s0_arvalid.eq(0),
-            self.f2h_axi_s0_rready.eq(self.f2h_axi_s0_rvalid),
+            hps.f2h_axi_s0.arvalid.eq(0),
+            hps.f2h_axi_s0.rready.eq(hps.f2h_axi_s0.rvalid),
         ]
 
         # hook up AXI -> CSR bridge
         m.submodules.csr_bridge = csr_bridge = AXI3CSRBridge()
-        for name in self.signature.members.keys():
-            if not name.startswith("h2f_lw_"): continue
-            bname = name.replace("h2f_lw_", "")
-            if self.signature.members[name].flow == In:
-                m.d.comb += getattr(csr_bridge, bname).eq(getattr(self, name))
+        for name in hps.h2f_lw.signature.members.keys():
+            if name == "clk": continue
+            if hps.h2f_lw.signature.members[name].flow == Out:
+                m.d.comb += getattr(csr_bridge, name).eq(
+                    getattr(hps.h2f_lw, name))
             else:
-                m.d.comb += getattr(self, name).eq(getattr(csr_bridge, bname))
+                m.d.comb += getattr(hps.h2f_lw, name).eq(
+                    getattr(csr_bridge, name))
         connect(m, csr_bridge.csr_bus, top.csr_bus)
 
         return m
