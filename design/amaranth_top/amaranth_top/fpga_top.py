@@ -188,7 +188,25 @@ def gen_build():
     import sys
     from pathlib import Path
 
+    # constraints go in the .sdc file
+    constraints = [
+        # PLL clock stock constraints
+        "derive_pll_clocks",
+        "derive_clock_uncertainty",
+
+        # eliminate false paths to async clear inputs of synchronizers
+        # (as created by Amaranth's ResetSynchronizer)
+        """
+        foreach path [get_entity_instances altera_std_synchronizer] {
+            set path_pins [get_pins -nowarn $path|dreg[*]|clrn];
+            if {[get_collection_size $path_pins] > 0} {
+                set_false_path -to $path_pins;
+            }
+        }""",
+    ]
+
     plan = DE10NanoPlatform().build(FPGATop(),
+        add_constraints="\n".join(constraints),
         do_build=False,
         # prevent source paths from being written into the design, in particular
         # absolute paths!
