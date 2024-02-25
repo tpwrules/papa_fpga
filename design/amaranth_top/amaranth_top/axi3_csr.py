@@ -7,47 +7,14 @@ from amaranth.lib.fifo import SyncFIFO
 
 from amaranth_soc import csr
 
+from .axi3 import AXI3Signature
+
 # design goals:
 #   * non horribly atrocious latency
 #   * not horribly broken
 
 class AXI3CSRBridge(Component):
-    awid: In(12)
-    awaddr: In(21)
-    awlen: In(4)
-    awsize: In(3)
-    awburst: In(2)
-    awlock: In(2)
-    awcache: In(4)
-    awprot: In(3)
-    awvalid: In(1)
-    awready: Out(1)
-    wid: In(12)
-    wdata: In(32)
-    wstrb: In(4)
-    wlast: In(1)
-    wvalid: In(1)
-    wready: Out(1)
-    bid: Out(12)
-    bresp: Out(2)
-    bvalid: Out(1)
-    bready: In(1)
-    arid: In(12)
-    araddr: In(21)
-    arlen: In(4)
-    arsize: In(3)
-    arburst: In(2)
-    arlock: In(2)
-    arcache: In(4)
-    arprot: In(3)
-    arvalid: In(1)
-    arready: Out(1)
-    rid: Out(12)
-    rdata: Out(32)
-    rresp: Out(2)
-    rlast: Out(1)
-    rvalid: Out(1)
-    rready: In(1)
+    axi_bus: In(AXI3Signature(addr_width=21, data_width=32, id_width=12))
 
     csr_bus: Out(csr.Signature(addr_width=8, data_width=32))
 
@@ -60,15 +27,16 @@ class AXI3CSRBridge(Component):
         m.submodules.w_fifo = w_fifo = SyncFIFO(width=32, depth=16)
         m.submodules.r_fifo = r_fifo = SyncFIFO(width=32+3+12, depth=16)
 
+        axi = self.axi_bus
         m.d.comb += [
             # interface to AXI side
-            w_fifo.w_data.eq(self.wdata),
-            w_fifo.w_en.eq(self.wvalid & self.wready),
-            self.wready.eq(w_fifo.w_rdy),
+            w_fifo.w_data.eq(axi.w.data),
+            w_fifo.w_en.eq(axi.w.valid & axi.w.ready),
+            axi.w.ready.eq(w_fifo.w_rdy),
 
-            Cat(self.rdata, self.rid, self.rresp, self.rlast).eq(r_fifo.r_data),
-            r_fifo.r_en.eq(self.rvalid & self.rready),
-            self.rvalid.eq(r_fifo.r_rdy),
+            Cat(axi.r.data, axi.r.id, axi.r.resp, axi.r.last).eq(r_fifo.r_data),
+            r_fifo.r_en.eq(axi.r.valid & axi.r.ready),
+            axi.r.valid.eq(r_fifo.r_rdy),
 
             # interface to CSR side
             self.csr_bus.w_data.eq(w_fifo.r_data),
@@ -87,18 +55,18 @@ class AXI3CSRBridge(Component):
         axi_wlen = Signal(4)
         axi_wid = Signal(12)
 
-        m.d.comb += self.awready.eq(~axi_wavail)
-        with m.If(self.awready & self.awvalid):
+        m.d.comb += axi.aw.ready.eq(~axi_wavail)
+        with m.If(axi.aw.ready & axi.aw.valid):
             m.d.sync += [
                 axi_wavail.eq(1),
-                axi_waddr.eq(self.awaddr),
-                axi_wlen.eq(self.awlen),
-                axi_wid.eq(self.awid),
+                axi_waddr.eq(axi.aw.addr),
+                axi_wlen.eq(axi.aw.len),
+                axi_wid.eq(axi.aw.id),
             ]
-            with m.If((self.awsize == 0b010) # 4 bytes
-                    & (self.awlock == 0) # not locked
-                    & (self.awburst == 0b01) # increment burst
-                    & (self.awaddr[:2] == 0)): # aligned
+            with m.If((axi.aw.size == 0b010) # 4 bytes
+                    & (axi.aw.lock == 0) # not locked
+                    & (axi.aw.burst == 0b01) # increment burst
+                    & (axi.aw.addr[:2] == 0)): # aligned
                 m.d.sync += axi_wokay.eq(1)
             with m.Else():
                 m.d.sync += axi_wokay.eq(0)
@@ -110,18 +78,18 @@ class AXI3CSRBridge(Component):
         axi_rlen = Signal(4)
         axi_rid = Signal(12)
 
-        m.d.comb += self.arready.eq(~axi_ravail)
-        with m.If(self.arready & self.arvalid):
+        m.d.comb += axi.ar.ready.eq(~axi_ravail)
+        with m.If(axi.ar.ready & axi.ar.valid):
             m.d.sync += [
                 axi_ravail.eq(1),
-                axi_raddr.eq(self.araddr),
-                axi_rlen.eq(self.arlen),
-                axi_rid.eq(self.arid),
+                axi_raddr.eq(axi.ar.addr),
+                axi_rlen.eq(axi.ar.len),
+                axi_rid.eq(axi.ar.id),
             ]
-            with m.If((self.arsize == 0b010) # 4 bytes
-                    & (self.arlock == 0) # not locked
-                    & (self.arburst == 0b01) # increment burst
-                    & (self.araddr[:2] == 0)): # aligned
+            with m.If((axi.ar.size == 0b010) # 4 bytes
+                    & (axi.ar.lock == 0) # not locked
+                    & (axi.ar.burst == 0b01) # increment burst
+                    & (axi.ar.addr[:2] == 0)): # aligned
                 m.d.sync += axi_rokay.eq(1)
             with m.Else():
                 m.d.sync += axi_rokay.eq(0)
@@ -173,11 +141,11 @@ class AXI3CSRBridge(Component):
 
             with m.State("WRITE_DONE"):
                 m.d.comb += [
-                    self.bvalid.eq(1),
-                    self.bid.eq(axi_wid),
-                    self.bresp.eq(Mux(axi_wokay, 0, 0b10)), # target error
+                    axi.b.valid.eq(1),
+                    axi.b.id.eq(axi_wid),
+                    axi.b.resp.eq(Mux(axi_wokay, 0, 0b10)), # target error
                 ]
-                with m.If(self.bready):
+                with m.If(axi.b.ready):
                     m.d.sync += axi_wavail.eq(0)
                     m.next = "IDLE"
 
@@ -222,13 +190,13 @@ class AXIDemo(Component):
 
             with m.State("AWVALID"):
                 m.d.comb += [
-                    bridge.awaddr.eq(0),
-                    bridge.awlen.eq(7), # 8 words
-                    bridge.awsize.eq(0b010), # 4 bytes
-                    bridge.awburst.eq(0b01), # increment burst
-                    bridge.awvalid.eq(1),
+                    bridge.axi_bus.aw.addr.eq(0),
+                    bridge.axi_bus.aw.len.eq(7), # 8 words
+                    bridge.axi_bus.aw.size.eq(0b010), # 4 bytes
+                    bridge.axi_bus.aw.burst.eq(0b01), # increment burst
+                    bridge.axi_bus.aw.valid.eq(1),
                 ]
-                with m.If(bridge.awready):
+                with m.If(bridge.axi_bus.aw.ready):
                     m.next = "IDLE"
 
         # write data state machine
@@ -240,14 +208,14 @@ class AXIDemo(Component):
                     m.next = "WVALID"
 
             with m.State("WVALID"):
-                m.d.comb += bridge.wvalid.eq(1)
-                with m.If(bridge.wready):
+                m.d.comb += bridge.axi_bus.w.valid.eq(1)
+                with m.If(bridge.axi_bus.w.ready):
                     m.d.sync += write_remain.eq(write_remain - 1)
                     with m.If(write_remain == 0):
                         m.next = "IDLE"
 
         # always ready for write response
-        m.d.comb += bridge.bready.eq(1)
+        m.d.comb += bridge.axi_bus.b.ready.eq(1)
 
         # read address state machine
         with m.FSM("IDLE"):
@@ -257,20 +225,20 @@ class AXIDemo(Component):
 
             with m.State("ARVALID"):
                 m.d.comb += [
-                    bridge.araddr.eq(0),
-                    bridge.arlen.eq(7), # 8 words
-                    bridge.arsize.eq(0b010), # 4 bytes
-                    bridge.arburst.eq(0b01), # increment burst
-                    bridge.arvalid.eq(1),
+                    bridge.axi_bus.ar.addr.eq(0),
+                    bridge.axi_bus.ar.len.eq(7), # 8 words
+                    bridge.axi_bus.ar.size.eq(0b010), # 4 bytes
+                    bridge.axi_bus.ar.burst.eq(0b01), # increment burst
+                    bridge.axi_bus.ar.valid.eq(1),
                 ]
-                with m.If(bridge.arready):
+                with m.If(bridge.axi_bus.ar.ready):
                     m.next = "IDLE"
 
         # always ready for read data
-        m.d.comb += bridge.rready.eq(1)
+        m.d.comb += bridge.axi_bus.r.ready.eq(1)
 
         # read and write something vaguely interesting
-        m.d.comb += bridge.wdata.eq(69)
+        m.d.comb += bridge.axi_bus.w.data.eq(69)
         m.d.sync += bridge.csr_bus.r_data.eq(bridge.csr_bus.addr)
 
         # wire demo outputs

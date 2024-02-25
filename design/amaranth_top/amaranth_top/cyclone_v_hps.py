@@ -4,6 +4,8 @@ from amaranth import *
 from amaranth.lib import wiring
 from amaranth.lib.wiring import In, Out
 
+from .axi3 import AXI3Signature
+
 class SignatureInstance(wiring.Component):
     def elaborate(self, platform):
         ports = []
@@ -14,6 +16,18 @@ class SignatureInstance(wiring.Component):
                 name, getattr(self, name)))
 
         return Instance(self._module, *ports)
+
+class AXI3Instance(wiring.Component):
+    def _get_axi_ports(self):
+        ports = []
+
+        # add all the AXI ports to the ports list
+        for cn, chan in self.signature.members.items():
+            for pn, port in chan.signature.members.items():
+                ports.append(("i" if port.flow == In else "o",
+                    f"{cn}{pn}", getattr(getattr(self, cn), pn)))
+
+        return ports
 
 class _ClocksResets(SignatureInstance):
     _module = "cyclonev_hps_interface_clocks_resets"
@@ -61,92 +75,54 @@ class _FPGA2SDRAM(SignatureInstance):
     cfg_port_width: In(12)
     cfg_cport_wfifo_map: In(18)
 
-class _FPGA2HPS(SignatureInstance):
+class _FPGA2HPS(AXI3Instance):
     _module = "cyclonev_hps_interface_fpga2hps"
 
-    port_size_config: In(2, init=0) # 0 == 32 bits, 3 == disabled?
-    clk: In(1)
+    def __init__(self):
+        super().__init__(AXI3Signature(
+            addr_width=32,
+            data_width=32,
+            id_width=8,
+            user_width=dict(aw=5, ar=5),
+        ).flip()) # HPS is the responder
 
-    awid: In(8)
-    awaddr: In(32)
-    awlen: In(4)
-    awsize: In(3)
-    awburst: In(2)
-    awlock: In(2)
-    awcache: In(4)
-    awprot: In(3)
-    awvalid: In(1)
-    awready: Out(1)
-    awuser: In(5)
-    wid: In(8)
-    wdata: In(32)
-    wstrb: In(4)
-    wlast: In(1)
-    wvalid: In(1)
-    wready: Out(1)
-    bid: Out(8)
-    bresp: Out(2)
-    bvalid: Out(1)
-    bready: In(1)
-    arid: In(8)
-    araddr: In(32)
-    arlen: In(4)
-    arsize: In(3)
-    arburst: In(2)
-    arlock: In(2)
-    arcache: In(4)
-    arprot: In(3)
-    arvalid: In(1)
-    arready: Out(1)
-    aruser: In(5)
-    rid: Out(8)
-    rdata: Out(32)
-    rresp: Out(2)
-    rlast: Out(1)
-    rvalid: Out(1)
-    rready: In(1)
+    def elaborate(self, platform):
+        m = Module()
 
-class _HPS2FPGALW(SignatureInstance):
+        clk = Signal()
+        m.d.comb += clk.eq(ClockSignal())
+
+        m.submodules[self._module] = Instance(self._module, *(
+            # 0 == 32 bits, 3 == disabled?
+            ("i", "port_size_config", Signal(2, init=0)),
+            ("i", "clk", clk),
+            *self._get_axi_ports(),
+        ))
+
+        return m
+
+class _HPS2FPGALW(AXI3Instance):
     _module = "cyclonev_hps_interface_hps2fpga_light_weight"
 
-    clk: In(1)
+    def __init__(self):
+        super().__init__(AXI3Signature(
+            addr_width=21,
+            data_width=32,
+            id_width=12,
+        ))
 
-    awid: Out(12)
-    awaddr: Out(21)
-    awlen: Out(4)
-    awsize: Out(3)
-    awburst: Out(2)
-    awlock: Out(2)
-    awcache: Out(4)
-    awprot: Out(3)
-    awvalid: Out(1)
-    awready: In(1)
-    wid: Out(12)
-    wdata: Out(32)
-    wstrb: Out(4)
-    wlast: Out(1)
-    wvalid: Out(1)
-    wready: In(1)
-    bid: In(12)
-    bresp: In(2)
-    bvalid: In(1)
-    bready: Out(1)
-    arid: Out(12)
-    araddr: Out(21)
-    arlen: Out(4)
-    arsize: Out(3)
-    arburst: Out(2)
-    arlock: Out(2)
-    arcache: Out(4)
-    arprot: Out(3)
-    arvalid: Out(1)
-    arready: In(1)
-    rid: In(12)
-    rdata: In(32)
-    rresp: In(2)
-    rlast: In(1)
-    rvalid: In(1)
-    rready: Out(1)
+    def elaborate(self, platform):
+        m = Module()
+
+        clk = Signal()
+        m.d.comb += clk.eq(ClockSignal())
+
+        m.submodules[self._module] = Instance(self._module, *(
+            ("i", "clk", clk),
+            *self._get_axi_ports(),
+        ))
+
+        return m
 
 # there must be an assignment in the .qsf of the form
 #   'set_instance_assignment -name hps_partition on -entity <x>'
@@ -204,10 +180,8 @@ class CycloneVHPS(wiring.Component):
 
         # not sure if mandatory
         m.submodules.fpga2hps = self.f2h_axi_s0
-        m.d.comb += self.f2h_axi_s0.clk.eq(ClockSignal())
 
         # not mandatory
         m.submodules.hps2fpga_light_weight = self.h2f_lw
-        m.d.comb += self.h2f_lw.clk.eq(ClockSignal())
 
         return m

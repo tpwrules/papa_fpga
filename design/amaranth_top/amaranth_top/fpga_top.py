@@ -123,58 +123,51 @@ class FPGATop(Component):
 
         # hook up audio RAM bus to AXI port
         m.d.comb += [
-            hps.f2h_axi_s0.awid.eq(0), # always write with id 0
-            hps.f2h_axi_s0.awlen.eq(top.audio_ram.length),
-            hps.f2h_axi_s0.awsize.eq(0b001), # two bytes at a time
-            hps.f2h_axi_s0.awburst.eq(0b01), # burst mode: increment
+            hps.f2h_axi_s0.aw.id.eq(0), # always write with id 0
+            hps.f2h_axi_s0.aw.len.eq(top.audio_ram.length),
+            hps.f2h_axi_s0.aw.size.eq(0b001), # two bytes at a time
+            hps.f2h_axi_s0.aw.burst.eq(0b01), # burst mode: increment
             # heard vague rumors that these should just all be 1 to activate
             # caching as expected...
-            hps.f2h_axi_s0.awcache.eq(0b1111),
+            hps.f2h_axi_s0.aw.cache.eq(0b1111),
             # and 5 1 bits for the user data too (though that is from the
             # handbook)...
-            hps.f2h_axi_s0.awuser.eq(0b11111),
-            hps.f2h_axi_s0.awvalid.eq(top.audio_ram.addr_valid),
-            top.audio_ram.addr_ready.eq(hps.f2h_axi_s0.awready),
+            hps.f2h_axi_s0.aw.user.eq(0b11111),
+            hps.f2h_axi_s0.aw.valid.eq(top.audio_ram.addr_valid),
+            top.audio_ram.addr_ready.eq(hps.f2h_axi_s0.aw.ready),
 
-            hps.f2h_axi_s0.wdata.eq( # route 16 bit data to both 32 bit halves
+            hps.f2h_axi_s0.w.data.eq( # route 16 bit data to both 32 bit halves
                 Cat(top.audio_ram.data, top.audio_ram.data)),
-            hps.f2h_axi_s0.wvalid.eq(top.audio_ram.data_valid),
-            hps.f2h_axi_s0.wlast.eq(top.audio_ram.data_last),
-            top.audio_ram.data_ready.eq(hps.f2h_axi_s0.wready),
+            hps.f2h_axi_s0.w.valid.eq(top.audio_ram.data_valid),
+            hps.f2h_axi_s0.w.last.eq(top.audio_ram.data_last),
+            top.audio_ram.data_ready.eq(hps.f2h_axi_s0.w.ready),
 
-            hps.f2h_axi_s0.bready.eq(hps.f2h_axi_s0.bvalid),
-            top.audio_ram.txn_done.eq(hps.f2h_axi_s0.bvalid),
+            hps.f2h_axi_s0.b.ready.eq(hps.f2h_axi_s0.b.valid),
+            top.audio_ram.txn_done.eq(hps.f2h_axi_s0.b.valid),
         ]
 
         # transform 16 bit audio bus into 32 bit AXI bus
         # remove bottom two address bits to stay 32 bit aligned
-        m.d.comb += hps.f2h_axi_s0.awaddr.eq(top.audio_ram.addr & 0xFFFFFFFC)
+        m.d.comb += hps.f2h_axi_s0.aw.addr.eq(top.audio_ram.addr & 0xFFFFFFFC)
         curr_half = Signal() # 16 bit half of the 32 bit word we're writing
-        with m.If(hps.f2h_axi_s0.awvalid & hps.f2h_axi_s0.awready):
+        with m.If(hps.f2h_axi_s0.aw.valid & hps.f2h_axi_s0.aw.ready):
             # latch which half we are writing initially
             m.d.sync += curr_half.eq(top.audio_ram.addr[1])
-        with m.If(hps.f2h_axi_s0.wvalid & hps.f2h_axi_s0.wready):
+        with m.If(hps.f2h_axi_s0.w.valid & hps.f2h_axi_s0.w.ready):
             # swap halves after every write
             m.d.sync += curr_half.eq(~curr_half)
         # set strobes to enable low or high bytes according to current half
-        m.d.comb += hps.f2h_axi_s0.wstrb.eq(Mux(curr_half, 0b1100, 0b0011))
+        m.d.comb += hps.f2h_axi_s0.w.strb.eq(Mux(curr_half, 0b1100, 0b0011))
 
         # plug off AXI port address write and read data ports
         m.d.comb += [
-            hps.f2h_axi_s0.arvalid.eq(0),
-            hps.f2h_axi_s0.rready.eq(hps.f2h_axi_s0.rvalid),
+            hps.f2h_axi_s0.ar.valid.eq(0),
+            hps.f2h_axi_s0.r.ready.eq(hps.f2h_axi_s0.r.valid),
         ]
 
         # hook up AXI -> CSR bridge
         m.submodules.csr_bridge = csr_bridge = AXI3CSRBridge()
-        for name in hps.h2f_lw.signature.members.keys():
-            if name == "clk": continue
-            if hps.h2f_lw.signature.members[name].flow == Out:
-                m.d.comb += getattr(csr_bridge, name).eq(
-                    getattr(hps.h2f_lw, name))
-            else:
-                m.d.comb += getattr(hps.h2f_lw, name).eq(
-                    getattr(csr_bridge, name))
+        connect(m, hps.h2f_lw, csr_bridge.axi_bus)
         connect(m, csr_bridge.csr_bus, top.csr_bus)
 
         # submodules we don't want Amaranth to elaborate until now
