@@ -12,6 +12,64 @@ from .convolve import Convolver
 from .cyclone_v_pll import IntelPLL
 from .axi3_csr import AXI3CSRBridge
 from .cyclone_v_hps import CycloneVHPS
+from .bus import AudioRAMBus
+from .axi3 import AXI3Signature
+
+class AudioAdapter(Component):
+    audio: In(AudioRAMBus())
+    axi: Out(AXI3Signature(addr_width=32, data_width=32, id_width=8,
+        user_width={"aw": 5, "ar": 5}))
+
+    def elaborate(self, platform):
+        m = Module()
+
+        axi = self.axi
+        audio = self.audio
+
+        m.d.comb += [
+            axi.aw.id.eq(0), # always write with id 0
+            axi.aw.len.eq(audio.length),
+            axi.aw.size.eq(0b001), # two bytes at a time
+            axi.aw.burst.eq(0b01), # burst mode: increment
+            # heard vague rumors that these should just all be 1 to activate
+            # caching as expected...
+            axi.aw.cache.eq(0b1111),
+            # and 5 1 bits for the user data too (though that is from the
+            # handbook)...
+            axi.aw.user.eq(0b11111),
+            axi.aw.valid.eq(audio.addr_valid),
+            audio.addr_ready.eq(axi.aw.ready),
+
+            axi.w.data.eq( # route 16 bit data to both 32 bit halves
+                Cat(audio.data, audio.data)),
+            axi.w.valid.eq(audio.data_valid),
+            axi.w.last.eq(audio.data_last),
+            audio.data_ready.eq(axi.w.ready),
+
+            axi.b.ready.eq(axi.b.valid),
+            audio.txn_done.eq(axi.b.valid),
+        ]
+
+        # transform 16 bit audio bus into 32 bit AXI bus
+        # remove bottom two address bits to stay 32 bit aligned
+        m.d.comb += axi.aw.addr.eq(audio.addr & 0xFFFFFFFC)
+        curr_half = Signal() # 16 bit half of the 32 bit word we're writing
+        with m.If(axi.aw.valid & axi.aw.ready):
+            # latch which half we are writing initially
+            m.d.sync += curr_half.eq(audio.addr[1])
+        with m.If(axi.w.valid & axi.w.ready):
+            # swap halves after every write
+            m.d.sync += curr_half.eq(~curr_half)
+        # set strobes to enable low or high bytes according to current half
+        m.d.comb += axi.w.strb.eq(Mux(curr_half, 0b1100, 0b0011))
+
+        # plug off AXI port address write and read data ports
+        m.d.comb += [
+            axi.ar.valid.eq(0),
+            axi.r.ready.eq(axi.r.valid),
+        ]
+
+        return m
 
 class FPGATop(Elaboratable):
     def elaborate(self, platform):
@@ -118,48 +176,9 @@ class FPGATop(Elaboratable):
 
         # hook up audio RAM bus to AXI port
         m.submodules.f2h = f2h = hps.request_fpga2hps_port(data_width=32)
-        m.d.comb += [
-            f2h.aw.id.eq(0), # always write with id 0
-            f2h.aw.len.eq(top.audio_ram.length),
-            f2h.aw.size.eq(0b001), # two bytes at a time
-            f2h.aw.burst.eq(0b01), # burst mode: increment
-            # heard vague rumors that these should just all be 1 to activate
-            # caching as expected...
-            f2h.aw.cache.eq(0b1111),
-            # and 5 1 bits for the user data too (though that is from the
-            # handbook)...
-            f2h.aw.user.eq(0b11111),
-            f2h.aw.valid.eq(top.audio_ram.addr_valid),
-            top.audio_ram.addr_ready.eq(f2h.aw.ready),
-
-            f2h.w.data.eq( # route 16 bit data to both 32 bit halves
-                Cat(top.audio_ram.data, top.audio_ram.data)),
-            f2h.w.valid.eq(top.audio_ram.data_valid),
-            f2h.w.last.eq(top.audio_ram.data_last),
-            top.audio_ram.data_ready.eq(f2h.w.ready),
-
-            f2h.b.ready.eq(f2h.b.valid),
-            top.audio_ram.txn_done.eq(f2h.b.valid),
-        ]
-
-        # transform 16 bit audio bus into 32 bit AXI bus
-        # remove bottom two address bits to stay 32 bit aligned
-        m.d.comb += f2h.aw.addr.eq(top.audio_ram.addr & 0xFFFFFFFC)
-        curr_half = Signal() # 16 bit half of the 32 bit word we're writing
-        with m.If(f2h.aw.valid & f2h.aw.ready):
-            # latch which half we are writing initially
-            m.d.sync += curr_half.eq(top.audio_ram.addr[1])
-        with m.If(f2h.w.valid & f2h.w.ready):
-            # swap halves after every write
-            m.d.sync += curr_half.eq(~curr_half)
-        # set strobes to enable low or high bytes according to current half
-        m.d.comb += f2h.w.strb.eq(Mux(curr_half, 0b1100, 0b0011))
-
-        # plug off AXI port address write and read data ports
-        m.d.comb += [
-            f2h.ar.valid.eq(0),
-            f2h.r.ready.eq(f2h.r.valid),
-        ]
+        m.submodules.audio_adapter = audio_adapter = AudioAdapter()
+        connect(m, top.audio_ram, audio_adapter.audio)
+        connect(m, audio_adapter.axi, f2h)
 
         # hook up AXI -> CSR bridge
         m.submodules.csr_bridge = csr_bridge = AXI3CSRBridge()
