@@ -4,23 +4,18 @@ from amaranth import *
 from amaranth.lib import wiring
 from amaranth.lib.wiring import In, Out
 
-class AutoInstance(wiring.Component):
+class SignatureInstance(wiring.Component):
     def elaborate(self, platform):
-        m = Module()
+        ports = []
+        for name, member in self.signature.members.items():
+            if not member.is_port:
+                raise ValueError(f"member {name} is not a port")
+            ports.append(("i" if member.flow == In else "o",
+                name, getattr(self, name)))
 
-        sigs = []
-        for name, kind in self.__annotations__.items():
-            if kind.flow == In:
-                kind = "i"
-            elif kind.flow == Out:
-                kind = "o"
-            sigs.append((kind, name, getattr(self, name)))
+        return Instance(self._module, *ports)
 
-        m.submodules[self._module] = Instance(self._module, *sigs)
-
-        return m
-
-class _ClocksResets(AutoInstance):
+class _ClocksResets(SignatureInstance):
     _module = "cyclonev_hps_interface_clocks_resets"
 
     f2h_pending_rst_ack: In(1, init=1)
@@ -29,18 +24,18 @@ class _ClocksResets(AutoInstance):
     h2f_rst_n: Out(1)
     f2h_cold_rst_req_n: In(1, init=1)
 
-class _DbgApb(AutoInstance):
+class _DbgApb(SignatureInstance):
     _module = "cyclonev_hps_interface_dbg_apb"
 
     DBG_APB_DISABLE: In(1)
     P_CLK_EN: In(1)
 
-class _TpiuTrace(AutoInstance):
+class _TpiuTrace(SignatureInstance):
     _module = "cyclonev_hps_interface_tpiu_trace"
 
     traceclk_ctl: In(1, init=1)
 
-class _BootFromFPGA(AutoInstance):
+class _BootFromFPGA(SignatureInstance):
     _module = "cyclonev_hps_interface_boot_from_fpga"
 
     boot_from_fpga_ready: In(1)
@@ -50,12 +45,12 @@ class _BootFromFPGA(AutoInstance):
     csel: In(2, init=1) # not sure of meaning
     bsel: In(3, init=1) # not sure of meaning
 
-class _HPS2FPGA(AutoInstance):
+class _HPS2FPGA(SignatureInstance):
     _module = "cyclonev_hps_interface_hps2fpga"
 
     port_size_config: In(2, init=3) # 3 == disabled?
 
-class _FPGA2SDRAM(AutoInstance):
+class _FPGA2SDRAM(SignatureInstance):
     _module = "cyclonev_hps_interface_fpga2sdram"
 
     cfg_cport_rfifo_map: In(18)
@@ -66,7 +61,7 @@ class _FPGA2SDRAM(AutoInstance):
     cfg_port_width: In(12)
     cfg_cport_wfifo_map: In(18)
 
-class _FPGA2HPS(AutoInstance):
+class _FPGA2HPS(SignatureInstance):
     _module = "cyclonev_hps_interface_fpga2hps"
 
     port_size_config: In(2, init=0) # 0 == 32 bits, 3 == disabled?
@@ -111,7 +106,7 @@ class _FPGA2HPS(AutoInstance):
     rvalid: Out(1)
     rready: In(1)
 
-class _HPS2FPGALW(AutoInstance):
+class _HPS2FPGALW(SignatureInstance):
     _module = "cyclonev_hps_interface_hps2fpga_light_weight"
 
     clk: In(1)
