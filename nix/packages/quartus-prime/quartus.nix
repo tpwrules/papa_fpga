@@ -1,3 +1,5 @@
+# This file is also available under the terms of the MIT license.
+# Copyright (c) 2003-2024 Eelco Dolstra and the Nixpkgs/NixOS contributors
 { stdenv, lib, unstick, fetchurl
 , supportedDevices ? [ "Arria II" "Cyclone V" "Cyclone IV" "Cyclone 10 LP" "MAX II/V" "MAX 10 FPGA" ]
 }:

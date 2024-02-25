@@ -1,3 +1,5 @@
+# This file is also available under the terms of the MIT license.
+# See /LICENSE.mit and /README.md for more information.
 { stdenvNoCC
 , lib
 , quartus-prime-lite

@@ -1,3 +1,5 @@
+# This file is also available under the terms of the MIT license.
+# See /LICENSE.mit and /README.md for more information.
 from amaranth import *
 
 # delay (by default the same length as FFSynchronizer) that doesn't do any CDC
