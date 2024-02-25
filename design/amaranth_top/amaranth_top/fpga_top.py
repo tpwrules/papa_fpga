@@ -13,12 +13,7 @@ from .cyclone_v_pll import IntelPLL
 from .axi3_csr import AXI3CSRBridge
 from .cyclone_v_hps import CycloneVHPS
 
-class FPGATop(Component):
-    GPIO_0_OUT: Out(2)
-    GPIO_0_IN:  In(34)
-    GPIO_1_OUT: Out(2)
-    GPIO_1_IN:  In(34)
-
+class FPGATop(Elaboratable):
     def elaborate(self, platform):
         m = Module()
 
