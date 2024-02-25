@@ -1,10 +1,16 @@
 # This file is also available under the terms of the MIT license.
 # See /LICENSE.mit and /README.md for more information.
 from amaranth import *
-from amaranth.lib import wiring
+from amaranth.lib import wiring, enum
 from amaranth.lib.wiring import In, Out
 
 from .axi3 import AXI3Signature
+
+class PortSize(enum.IntEnum, shape=2):
+    BITS_32 = 0
+    BITS_64 = 1
+    BITS_128 = 2
+    PORT_UNUSED = 3
 
 class SignatureInstance(wiring.Component):
     def elaborate(self, platform):
@@ -59,11 +65,6 @@ class _BootFromFPGA(SignatureInstance):
     csel: In(2, init=1) # not sure of meaning
     bsel: In(3, init=1) # not sure of meaning
 
-class _HPS2FPGA(SignatureInstance):
-    _module = "cyclonev_hps_interface_hps2fpga"
-
-    port_size_config: In(2, init=3) # 3 == disabled?
-
 class _FPGA2SDRAM(SignatureInstance):
     _module = "cyclonev_hps_interface_fpga2sdram"
 
@@ -78,13 +79,17 @@ class _FPGA2SDRAM(SignatureInstance):
 class _FPGA2HPS(AXI3Instance):
     _module = "cyclonev_hps_interface_fpga2hps"
 
-    def __init__(self):
-        super().__init__(AXI3Signature(
-            addr_width=32,
-            data_width=32,
-            id_width=8,
-            user_width=dict(aw=5, ar=5),
-        ).flip()) # HPS is the responder
+    def __init__(self, port_size):
+        self._port_size = port_size
+        if port_size != PortSize.PORT_UNUSED:
+            super().__init__(AXI3Signature(
+                addr_width=32,
+                data_width=(32, 64, 128)[port_size],
+                id_width=8,
+                user_width=dict(aw=5, ar=5),
+            ).flip()) # HPS is the responder
+        else:
+            super().__init__({})
 
     def elaborate(self, platform):
         m = Module()
@@ -92,12 +97,39 @@ class _FPGA2HPS(AXI3Instance):
         clk = Signal()
         m.d.comb += clk.eq(ClockSignal())
 
-        m.submodules[self._module] = Instance(self._module, *(
-            # 0 == 32 bits, 3 == disabled?
-            ("i", "port_size_config", Signal(2, init=0)),
-            ("i", "clk", clk),
-            *self._get_axi_ports(),
-        ))
+        ports = [("i", "clk", clk), *self._get_axi_ports()]
+        m.submodules[self._module] = Instance(self._module,
+            ("i", "port_size_config", self._port_size),
+            *(ports if self._port_size != PortSize.PORT_UNUSED else [])
+        )
+
+        return m
+
+class _HPS2FPGA(AXI3Instance):
+    _module = "cyclonev_hps_interface_hps2fpga"
+
+    def __init__(self, port_size):
+        self._port_size = port_size
+        if port_size != PortSize.PORT_UNUSED:
+            super().__init__(AXI3Signature(
+                addr_width=30,
+                data_width=(32, 64, 128)[port_size],
+                id_width=12,
+            ))
+        else:
+            super().__init__({})
+
+    def elaborate(self, platform):
+        m = Module()
+
+        clk = Signal()
+        m.d.comb += clk.eq(ClockSignal())
+
+        ports = [("i", "clk", clk), *self._get_axi_ports()]
+        m.submodules[self._module] = Instance(self._module,
+            ("i", "port_size_config", self._port_size),
+            *(ports if self._port_size != PortSize.PORT_UNUSED else [])
+        )
 
         return m
 
@@ -107,7 +139,7 @@ class _HPS2FPGALW(AXI3Instance):
     def __init__(self):
         super().__init__(AXI3Signature(
             addr_width=21,
-            data_width=32,
+            data_width=32, # always 32 bits, just not instantiated if unused
             id_width=12,
         ))
 
@@ -147,41 +179,93 @@ class _HPSDummy(Elaboratable):
 class CycloneVHPS(wiring.Component):
     h2f_rst: Out(1)
 
+    # Basic Usage
+    # 1. Construct one instance of this class in your design
+    # 2. Request various Elaboratables which represent various HPS
+    #    ports/interfaces by calling request_...()
+    # 3. Add this class as a submodule of your design only once all requests are
+    #    complete (i.e. adding to m.submodules)
+    # 4. Add requested Elaboratables as submodules of your design (hierarchy
+    #    doesn't matter, can be done before step 3)
+    # Note: Any requested Elaboratable can be placed in any clock domain; the
+    #       HPS handles clock domain crossing internally
+
     def __init__(self):
-        self.f2h_axi_s0 = _FPGA2HPS()
-        self.h2f_lw = _HPS2FPGALW()
+        # once elaborated, no further requests can be made
+        self._elaborated = False
+
+        self._f2h_requested = False
+        self._h2f_requested = False
+        self._h2f_lw_requested = False
 
         super().__init__()
+
+    def request_fpga2hps_port(self, data_width):
+        # request the FPGA -> HPS port with a data width of 32, 64, or 128 bits
+
+        if self._elaborated:
+            raise ValueError("already elaborated, no more requests possible")
+        if self._f2h_requested:
+            raise ValueError("port already requested")
+        self._f2h_requested = True
+
+        if data_width == 32 or data_width == 64 or data_width == 128:
+            port_size = getattr(PortSize, f"BITS_{data_width}")
+        else:
+            raise ValueError(f"unsupported data_width {data_width}")
+
+        return _FPGA2HPS(port_size)
+
+    def request_hps2fpga_port(self, data_width):
+        # request the HPS -> FPGA port with a data width of 32, 64, or 128 bits
+
+        if self._elaborated:
+            raise ValueError("already elaborated, no more requests possible")
+        if self._h2f_requested:
+            raise ValueError("port already requested")
+        self._h2f_requested = True
+
+        if data_width == 32 or data_width == 64 or data_width == 128:
+            port_size = getattr(PortSize, f"BITS_{data_width}")
+        else:
+            raise ValueError(f"unsupported data_width {data_width}")
+
+        return _HPS2FPGA(port_size)
+
+    def request_hps2fpga_lw_port(self):
+        # request the HPS -> FPGA lightweight port
+
+        if self._elaborated:
+            raise ValueError("already elaborated, no more requests possible")
+        if self._h2f_lw_requested:
+            raise ValueError("port already requested")
+        self._h2f_lw_requested = True
+
+        return _HPS2FPGALW()
 
     def elaborate(self, platform):
         m = Module()
 
-        # definitely mandatory
+        self._elaborated = True
+
+        # needed to avoid a Quartus bug, see class comments
         m.submodules.hps_dummy = _HPSDummy()
 
-        # not sure if mandatory
+        # hps <-> fpga resets (no clocks that we can see...)
         m.submodules.clocks_resets = clocks_resets = _ClocksResets()
         m.d.comb += self.h2f_rst.eq(~clocks_resets.h2f_rst_n)
 
-        # not sure if mandatory
+        # modules we don't expose yet but that are always created by Qsys
         m.submodules.dbg_apb = _DbgApb()
-
-        # not sure if mandatory
         m.submodules.tpiu_trace = _TpiuTrace()
-
-        # not sure if mandatory
         m.submodules.boot_from_fpga = _BootFromFPGA()
-
-        # not sure if mandatory
-        m.submodules.hps2fpga = _HPS2FPGA()
-
-        # not sure if mandatory
         m.submodules.fpga2sdram = _FPGA2SDRAM()
 
-        # not sure if mandatory
-        m.submodules.fpga2hps = self.f2h_axi_s0
-
-        # not mandatory
-        m.submodules.hps2fpga_light_weight = self.h2f_lw
+        # hps2fpga and fpga2hps must be instantiated as unused if not requested
+        if not self._f2h_requested:
+            m.submodules.fpga2hps_unused = _FPGA2HPS(PortSize.PORT_UNUSED)
+        if not self._h2f_requested:
+            m.submodules.hps2fpga_unused = _HPS2FPGA(PortSize.PORT_UNUSED)
+        # lightweight doesn't need to be instantiated as unused
 
         return m
