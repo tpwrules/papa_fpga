@@ -1,4 +1,5 @@
 result*
 profiles/
+build/
 
 .qsys_edit/
