@@ -22,14 +22,15 @@ class Blinker(Component):
     def elaborate(self, platform):
         m = Module()
 
-        button_sync = Signal() # active low
+        button_sync = Signal() # active high
         m.submodules += FFSynchronizer(self.button_raw, button_sync)
 
         MAX_COUNT = int(25e6)
         counter = Signal(range(0, MAX_COUNT-1))
         with m.If(counter == MAX_COUNT-1):
             m.d.sync += counter.eq(0)
-            m.d.sync += self.blink.eq(~self.blink & button_sync)
+            # blink unless button is pressed
+            m.d.sync += self.blink.eq(~self.blink & ~button_sync)
         with m.Else():
             m.d.sync += counter.eq(counter + 1)
 
