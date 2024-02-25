@@ -4,11 +4,14 @@
 
 Commands to build interesting parts of the setup for debugging.
 
-1. Build SoC system: `nix build .#design.soc_system`
-2. Build Amaranth Verilog module: `nix build .#design.amaranth_top`
-3. Build bitstream: `nix build .#design.bitstream`
-4. Build demo application: `nix build .#design.application`
-5. Build SD card image: `nix build .#nixosConfigurations.de10-nano`
+1. Build Amaranth tree: `nix build .#design.amaranth_top`
+2. Build bitstream: `nix build .#design.bitstream`
+3. Build system application: `nix build .#design.application`
+4. Build SD card image: `nix build .#nixosConfigurations.de10-nano`
+
+Rebuild system when connected over USB ethernet (password is blank):
+
+`nixos-rebuild --target-host nixos@192.168.80.1 --fast --use-remote-sudo --flake .#de10-nano switch -L`
 
 #### Prefill NAR Files
 
