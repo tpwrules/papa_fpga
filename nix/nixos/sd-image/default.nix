@@ -109,6 +109,8 @@
     (python3.withPackages (p: [
       p.numpy
     ]))
+
+    tmux
   ];
 
   services.openssh = {
