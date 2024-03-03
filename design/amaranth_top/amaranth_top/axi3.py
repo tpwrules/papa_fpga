@@ -50,7 +50,7 @@ class AXI3Params:
             if uw < 0:
                 raise ValueError(f"user_width must be non-negative")
             uw = UserWidth(aw=uw, w=uw, b=uw, ar=uw, r=uw)
-        else: # assume it's a dict
+        elif not isinstance(uw, UserWidth): # assume it's a dict
             uw = UserWidth(**uw)
         object.__setattr__(self, "user_width", uw)
 
@@ -63,9 +63,13 @@ class AXI3Params:
     # id signal width in bits
     id_width: int
 
-    # user signal width in bits, for each channel (aw/w/b/ar/r). can optionally
-    # be passed as an integer to set all channels to the same.
+    # user signal width in bits, for each channel (aw/w/b/ar/r).
     # technically not in AXI3 but Cyclone V needs it so...
+    # can be passed as three things:
+    #   * UserWidth instance (always stored as such)
+    #   * dict-like whose keys channel names (UserWidth attributes) and values
+    #     are the width of that channel (width is 0 for missing channels)
+    #   * integer to set the width of all channels to the same value
     user_width: UserWidth = 0
 
     @property
