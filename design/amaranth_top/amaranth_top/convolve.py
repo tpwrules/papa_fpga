@@ -381,20 +381,16 @@ class ConvolverDemo(Component):
         return m
 
 def demo():
-    global NUM_CHANS
-
     from amaranth.sim.core import Simulator
 
     from .constants import MIC_FREQ_HZ
 
     assert NUM_CHANS >= NUM_MICS
-    NUM_CHANS = NUM_MICS # gross
 
-    # for now generate coefficients that just copy the output to the input
+    # generate coefficients that just copy mic N to channel N
     coefficients = np.zeros((NUM_CHANS, NUM_TAPS, NUM_MICS), dtype=np.float64)
-    for x in range(NUM_CHANS):
-        # make each output channel an average of all the input mics
-        coefficients[x, -1, :] = 1/NUM_MICS
+    for x in range(NUM_MICS):
+        coefficients[x, -1, x] = 1
 
     top = ConvolverDemo(coefficients)
     sim = Simulator(top)
