@@ -14,14 +14,14 @@ final: prev: {
 
       buildPythonPackage rec {
         pname = "amaranth-soc";
-        version = "0.0.1"; # ugh pdm: unstable-2024-02-09
+        version = "0.0.0+unstable-2024-02-16";
         format = "pyproject";
 
         src = fetchFromGitHub {
           owner = "amaranth-lang";
           repo = "amaranth-soc";
-          rev = "1e1490ef85433493b9c43050eae8925ec85b2a53";
-          hash = "sha256-0eyWuS05E5OtbswROSlYj4CrR1ETNq7W3ub3mJn1AU8=";
+          rev = "9f46553aa4289e2a11788a73fade6410a371b162";
+          hash = "sha256-ZllDSrZEu16jZtbQ7crQSj3XCbsthueXtaAvyf45dmY=";
         };
 
         nativeBuildInputs = [ pdm-backend ];
@@ -46,20 +46,15 @@ final: prev: {
 
       buildPythonPackage rec {
         pname = "amaranth-boards";
-        version = "0.0.0+unstable-2023-12-13";
+        version = "0.0.0+unstable-2024-02-28";
         format = "pyproject";
 
         src = fetchFromGitHub {
           owner = "amaranth-lang";
           repo = "amaranth-boards";
-          rev = "170675812b71ee722bcf8ccdb88409a9ad97ffe2";
-          sha256 = "sha256-9ZyzD4hOGW2sG24ISNwYBY6NiDe5q0rwDeMdYtzjwDA=";
+          rev = "b67996c48f1bc91412605acd7012f242514d3927";
+          sha256 = "sha256-C1NFu3vBaplju1HKrfzJa/z78H0AN09CZ4f5CeBdVuw=";
         };
-
-        postPatch = ''
-          substituteInPlace pyproject.toml \
-            --replace-fail '"amaranth>=0.4,<0.5",' ""
-        '';
 
         nativeBuildInputs = [ setuptools setuptools-scm ];
         propagatedBuildInputs = [ amaranth ];
@@ -78,13 +73,13 @@ final: prev: {
     (python-final: python-prev: {
       # upgrade to latest version
       amaranth = (python-prev.amaranth.overrideAttrs (o: {
-        version = "0.0.0+unstable-2024-02-15";
+        version = "0.4.3+unstable-2024-03-03";
 
         src = final.fetchFromGitHub {
           owner = "amaranth-lang";
           repo = "amaranth";
-          rev = "24a392887af19a9d013252759ec209d5a91a378a";
-          hash = "sha256-i+TYmFZQ4C7IkZM+0zWcc1uVXE341mZS7o7U894ANik=";
+          rev = "127fe1fd2e33f94520ceff8e42f04383f5f10591";
+          hash = "sha256-cuwsrnmloI8KTQ9dKH+GT5xL9UhXQSv+zV9DgoQBDg8=";
         };
       }));
 
