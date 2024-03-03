@@ -132,7 +132,7 @@ class ChannelProcessor(Component):
     sample_out: Out(signed(CAP_DATA_BITS))
     sample_new: Out(1) # pulsed when new sample data is available
 
-    def __init__(self, coefficients):
+    def __init__(self, coefficients, max_coefficient):
         # coefficients as float values, we convert them to fixed point ourselves
         expected_shape = (NUM_TAPS, NUM_MICS)
         if coefficients.shape != expected_shape:
@@ -142,47 +142,39 @@ class ChannelProcessor(Component):
         assert CAP_DATA_BITS <= 18 # DSP A input
         assert COEFF_BITS <= 19 # DSP B input
 
-        # coefficients are all -1 to 1 and the sum of the coefficients is
-        # (just about) exactly the number of microphones. we need 2 integer
-        # bits for the coefficients, 1 for sign and 1 to accommodate
-        # coefficients just slightly more than abs(1). the rest we can make
-        # fraction bits. the input and output data we treat as fully integer,
-        # but we need to divide by the number of microphones too
+        # coefficients are all -1 to 1. we need 2 integer bits for the
+        # coefficients, 1 for sign and 1 to accommodate coefficients == 1
+        # (and slightly beyond). the rest we can make fraction bits.
         coeff_frac_bits = COEFF_BITS-2
 
-        # we can do most of the division by the number of mics by throwing
-        # away bits, but we have to do the rest by scaling the coefficients.
-        # compute the number of bits to throw away (which will be too few)
-        # then reduce the coefficients to do the rest.
-        num_mic_bits = ceil_log2(NUM_MICS) # could be too many
-        if NUM_MICS == 1 << num_mic_bits:
-            num_mic_frac = 1 # don't need to scale coefficients
-        else:
-            num_mic_bits -= 1 # reduce to throw away too few
-            num_mic_frac = (1<<num_mic_bits)/NUM_MICS # then scale coeffs
+        # the coefficients might all be rather small to make the sum 1. add more
+        # fractional bits for precision without exceeding the allotted bits.
+        if max_coefficient > 0:
+            max_val = (1 << (COEFF_BITS-1))-1 # leave one bit for sign
+            while int(max_coefficient * (1 << (coeff_frac_bits+1))) <= max_val:
+                coeff_frac_bits += 1 # another bit to multiply by another 2
 
-        # we want the output to be integral so we throw away the fractional bits
-        # from the coefficients too
-        self._trunc_bits = num_mic_bits + coeff_frac_bits
+        # we want integral output, so throw away fractional bits from the
+        # result. coefficients are the only part with fractions, input is
+        # integral, and processing doesn't add bits since the coefficient sum
+        # is (allegedly) at most 1, so that's all we need to truncate.
+        self._trunc_bits = coeff_frac_bits
 
-        # multiplication of CAP_DATA_BITS.0 * 2.COEFF_BITS-2 equals
-        # (CAP_DATA_BITS+2).(COEFF_BITS-2) or a total bit quantity of
-        # CAP_DATA_BITS+COEFF_BITS. we intend to sum NUM_TAPS*NUM_MICS
-        # of them, so we need enough bits for that too
-        total_bits = CAP_DATA_BITS + COEFF_BITS + ceil_log2(NUM_TAPS * NUM_MICS)
-        assert total_bits <= 64 # accumulator size
+        # multiplication produces at most CAP_DATA_BITS+COEFF_BITS of result. we
+        # sum NUM_TAPS*NUM_MICS results, so we need enough bits for that in the
+        # accumulator, although the final sum width is just CAP_DATA_BITS.
+        accum_bits = CAP_DATA_BITS + COEFF_BITS + ceil_log2(NUM_TAPS * NUM_MICS)
+        assert accum_bits <= 64 # accumulator size
 
-        # scale coefficients to do the rest of the division by num_mics
-        coefficients = coefficients * num_mic_frac
-        # convert coefficients to signed fixed point with the given number of
-        # fractional bits
+        # convert coefficients to signed fixed point with the calculated number
+        # of fractional bits
         coefficients = (coefficients * (1 << coeff_frac_bits)).astype(np.int64)
-        # make sure they're all in range
+        # make sure they're all in range to fit (input wasn't outside -1 to 1)
         assert np.all(np.abs(coefficients) < (1 << (COEFF_BITS-1)))
-        # mask to convert to unsigned values
+        # mask to final bit width (which also makes the values unsigned)
         coefficients &= (1 << COEFF_BITS)-1
 
-        # save as a list for Amaranth
+        # save as a list for the ROM in Amaranth
         self._coeff_rom_data = [int(v) for v in coefficients.reshape(-1)]
 
         super().__init__()
@@ -190,7 +182,7 @@ class ChannelProcessor(Component):
     def elaborate(self, platform):
         m = Module()
 
-        # RAM to hold coefficients
+        # ROM to hold coefficients
         mem_size = 1 << ceil_log2(NUM_TAPS * NUM_MICS)
         coeff_memory = Memory(
             width=COEFF_BITS, depth=mem_size, init=self._coeff_rom_data)
@@ -248,8 +240,8 @@ class Convolver(Component):
     def __init__(self, coefficients):
         # coefficients as float values, we convert them to fixed point
         # ourselves. coefficients are expected to be within -1 to +1 and the
-        # absolute sum of the coefficients for a particular output channel is
-        # expected to be at most 1.
+        # absolute value of the sum of the coefficients for a particular output
+        # channel is expected to be at most 1 to guarantee no output wrapping.
         expected_shape = (NUM_CHANS, NUM_TAPS, NUM_MICS)
         if coefficients.shape != expected_shape:
             raise ValueError(
@@ -257,7 +249,8 @@ class Convolver(Component):
 
         self._coefficients = np.empty(expected_shape, dtype=np.float64)
         np.copyto(self._coefficients, coefficients)
-        self._coefficients *= NUM_MICS # temporary hack
+        # max over all to ensure all channel processors use the same scaling
+        self._max_coefficient = np.absolute(self._coefficients).max()
 
         super().__init__()
 
@@ -273,7 +266,8 @@ class Convolver(Component):
         sample_out = []
         sample_new = Signal()
         for ci in range(0, NUM_CHANS):
-            processor = ChannelProcessor(self._coefficients[ci])
+            processor = ChannelProcessor(
+                self._coefficients[ci], self._max_coefficient)
             m.submodules[f"processor_{ci}"] = processor
 
             this_sample = Signal(signed(CAP_DATA_BITS), name=f"sample_{ci}")
