@@ -50,7 +50,7 @@ class AXI3CSRBridge(Component):
 
         # write information and acceptance logic
         axi_wavail = Signal() # info is valid and write needs to be completed
-        axi_wokay = Signal() # write transaction is valid (aligned, etc.)
+        axi_wokay = Signal() # write transaction is what we like (aligned, etc.)
         axi_waddr = Signal(21)
         axi_wlen = Signal(4)
         axi_wid = Signal(12)
@@ -62,18 +62,16 @@ class AXI3CSRBridge(Component):
                 axi_waddr.eq(axi.aw.addr),
                 axi_wlen.eq(axi.aw.len),
                 axi_wid.eq(axi.aw.id),
+                axi_wokay.eq( # check if we like the request
+                    (axi.aw.size == 0b010) & # 4 bytes
+                    (axi.aw.lock == 0) & # not locked
+                    (axi.aw.burst == 0b01) & # increment burst
+                    (axi.aw.addr[:2] == 0)), # aligned
             ]
-            with m.If((axi.aw.size == 0b010) # 4 bytes
-                    & (axi.aw.lock == 0) # not locked
-                    & (axi.aw.burst == 0b01) # increment burst
-                    & (axi.aw.addr[:2] == 0)): # aligned
-                m.d.sync += axi_wokay.eq(1)
-            with m.Else():
-                m.d.sync += axi_wokay.eq(0)
 
         # read information and acceptance logic
         axi_ravail = Signal() # info is valid and read needs to be completed
-        axi_rokay = Signal() # read transaction is valid (aligned, etc.)
+        axi_rokay = Signal() # read transaction is what we like (aligned, etc.)
         axi_raddr = Signal(21)
         axi_rlen = Signal(4)
         axi_rid = Signal(12)
@@ -85,14 +83,12 @@ class AXI3CSRBridge(Component):
                 axi_raddr.eq(axi.ar.addr),
                 axi_rlen.eq(axi.ar.len),
                 axi_rid.eq(axi.ar.id),
+                axi_rokay.eq( # check if we like the request
+                    (axi.ar.size == 0b010) & # 4 bytes
+                    (axi.ar.lock == 0) & # not locked
+                    (axi.ar.burst == 0b01) & # increment burst
+                    (axi.ar.addr[:2] == 0)), # aligned
             ]
-            with m.If((axi.ar.size == 0b010) # 4 bytes
-                    & (axi.ar.lock == 0) # not locked
-                    & (axi.ar.burst == 0b01) # increment burst
-                    & (axi.ar.addr[:2] == 0)): # aligned
-                m.d.sync += axi_rokay.eq(1)
-            with m.Else():
-                m.d.sync += axi_rokay.eq(0)
 
         # process reads and writes
         wpossible = Signal() # operation information is available
