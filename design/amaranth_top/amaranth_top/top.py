@@ -165,8 +165,9 @@ class Top(Component):
 
         # load prepared coefficient data
         coeff_path = pathlib.Path(__file__).parent/"coefficients.txt"
-        coefficients = np.loadtxt(coeff_path)
+        coefficients = np.loadtxt(coeff_path, dtype=np.float64)
         coefficients = coefficients.reshape(NUM_CHANS, NUM_TAPS, NUM_MICS)
+        coefficients /= NUM_MICS # legacy; we should change the generator
 
         # FIFO to cross domains to the convolver
         m.submodules.conv_i_fifo = conv_i_fifo = \

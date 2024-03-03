@@ -246,7 +246,10 @@ class Convolver(Component):
     REL_FREQ = int(((NUM_MICS * NUM_TAPS)+1)*1.01)
 
     def __init__(self, coefficients):
-        # coefficients as float values, we convert them to fixed point ourselves
+        # coefficients as float values, we convert them to fixed point
+        # ourselves. coefficients are expected to be within -1 to +1 and the
+        # absolute sum of the coefficients for a particular output channel is
+        # expected to be at most 1.
         expected_shape = (NUM_CHANS, NUM_TAPS, NUM_MICS)
         if coefficients.shape != expected_shape:
             raise ValueError(
@@ -254,6 +257,7 @@ class Convolver(Component):
 
         self._coefficients = np.empty(expected_shape, dtype=np.float64)
         np.copyto(self._coefficients, coefficients)
+        self._coefficients *= NUM_MICS # temporary hack
 
         super().__init__()
 
@@ -396,7 +400,7 @@ def demo():
     coefficients = np.zeros((NUM_CHANS, NUM_TAPS, NUM_MICS), dtype=np.float64)
     for x in range(NUM_CHANS):
         # make each output channel an average of all the input mics
-        coefficients[x, -1, :] = 1
+        coefficients[x, -1, :] = 1/NUM_MICS
 
     top = ConvolverDemo(coefficients)
     sim = Simulator(top)
