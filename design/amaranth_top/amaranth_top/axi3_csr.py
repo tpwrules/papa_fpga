@@ -20,14 +20,23 @@ class AXI3CSRBridge(Component):
 
     def elaborate(self, platform):
         m = Module()
+        axi = self.axi_bus
+        axi_params = axi.signature.params
+
+        # not in the business of width conversions (for now)
+        assert axi_params.data_width == self.csr_bus.data_width
+
+        # hard-coded address increment, alignment and valid check
+        assert axi_params.data_width == 32
 
         # data read and write are rather independent of everything else, so just
         # hook them to a FIFO and let them operate independently. each can store
         # one max-sized burst.
-        m.submodules.w_fifo = w_fifo = SyncFIFO(width=32, depth=16)
-        m.submodules.r_fifo = r_fifo = SyncFIFO(width=32+3+12, depth=16)
+        m.submodules.w_fifo = w_fifo = SyncFIFO(
+            width=axi_params.data_width, depth=16)
+        m.submodules.r_fifo = r_fifo = SyncFIFO( # 3 = resp + last
+            width=axi_params.data_width+axi_params.id_width+3, depth=16)
 
-        axi = self.axi_bus
         m.d.comb += [
             # interface to AXI side
             w_fifo.w_data.eq(axi.w.data),
@@ -51,9 +60,9 @@ class AXI3CSRBridge(Component):
         # write information and acceptance logic
         axi_wavail = Signal() # info is valid and write needs to be completed
         axi_wokay = Signal() # write transaction is what we like (aligned, etc.)
-        axi_waddr = Signal(21)
+        axi_waddr = Signal(axi_params.addr_width)
         axi_wlen = Signal(4)
-        axi_wid = Signal(12)
+        axi_wid = Signal(axi_params.id_width)
 
         m.d.comb += axi.aw.ready.eq(~axi_wavail)
         with m.If(axi.aw.ready & axi.aw.valid):
@@ -72,9 +81,9 @@ class AXI3CSRBridge(Component):
         # read information and acceptance logic
         axi_ravail = Signal() # info is valid and read needs to be completed
         axi_rokay = Signal() # read transaction is what we like (aligned, etc.)
-        axi_raddr = Signal(21)
+        axi_raddr = Signal(axi_params.addr_width)
         axi_rlen = Signal(4)
-        axi_rid = Signal(12)
+        axi_rid = Signal(axi_params.id_width)
 
         m.d.comb += axi.ar.ready.eq(~axi_ravail)
         with m.If(axi.ar.ready & axi.ar.valid):
@@ -100,10 +109,10 @@ class AXI3CSRBridge(Component):
 
         # read bus is registered so we need to delay the FIFO signals
         r_fifo_w_en = Signal()
-        r_fifo_rid = Signal(12)
+        r_fifo_rid = Signal(axi_params.id_width)
         r_fifo_rresp = Signal(2)
         r_fifo_rlast = Signal()
-        r_fifo_dataex = Signal(3+12)
+        r_fifo_dataex = Signal(axi_params.id_width+3) # 3 = resp + last
         m.d.sync += [
             r_fifo.w_en.eq(r_fifo_w_en),
             r_fifo_dataex.eq(Cat(r_fifo_rid, r_fifo_rresp, r_fifo_rlast))
