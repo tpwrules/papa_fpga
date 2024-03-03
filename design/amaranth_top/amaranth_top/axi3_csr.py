@@ -49,7 +49,7 @@ class AXI3CSRBridge(Component):
         # actually process it through the CSR bus
 
         # write information and acceptance logic
-        axi_wavail = Signal() # data is valid and write needs to be completed
+        axi_wavail = Signal() # info is valid and write needs to be completed
         axi_wokay = Signal() # write transaction is valid (aligned, etc.)
         axi_waddr = Signal(21)
         axi_wlen = Signal(4)
@@ -72,7 +72,7 @@ class AXI3CSRBridge(Component):
                 m.d.sync += axi_wokay.eq(0)
 
         # read information and acceptance logic
-        axi_ravail = Signal() # data is valid and read needs to be completed
+        axi_ravail = Signal() # info is valid and read needs to be completed
         axi_rokay = Signal() # read transaction is valid (aligned, etc.)
         axi_raddr = Signal(21)
         axi_rlen = Signal(4)
@@ -95,7 +95,6 @@ class AXI3CSRBridge(Component):
                 m.d.sync += axi_rokay.eq(0)
 
         # process reads and writes
-        priority = Signal() # whether to do read or write if both possible
         wpossible = Signal() # operation information is available
         rpossible = Signal() # and the FIFO has enough data/space
         m.d.comb += [
@@ -117,13 +116,12 @@ class AXI3CSRBridge(Component):
 
         with m.FSM("IDLE"):
             with m.State("IDLE"):
-                with m.If((wpossible & ~rpossible)
-                        | (wpossible & rpossible & priority)):
-                    m.d.sync += priority.eq(~priority)
+                # if we just finished e.g. write, then wpossible can't go active
+                # again until next cycle (as axi_wavail just went inactive this
+                # cycle) so we'll do a read if pending and won't starve it.
+                with m.If(wpossible):
                     m.next = "WRITE"
-                with m.Elif((~wpossible & rpossible)
-                        | (wpossible & rpossible & ~priority)):
-                    m.d.sync += priority.eq(~priority)
+                with m.Elif(rpossible):
                     m.next = "READ"
 
             with m.State("WRITE"):
