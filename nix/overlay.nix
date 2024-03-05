@@ -14,14 +14,14 @@ final: prev: {
 
       buildPythonPackage rec {
         pname = "amaranth-soc";
-        version = "0.0.0+unstable-2024-02-16";
+        version = "0.0.0+unstable-2024-03-04";
         format = "pyproject";
 
         src = fetchFromGitHub {
           owner = "amaranth-lang";
           repo = "amaranth-soc";
-          rev = "9f46553aa4289e2a11788a73fade6410a371b162";
-          hash = "sha256-ZllDSrZEu16jZtbQ7crQSj3XCbsthueXtaAvyf45dmY=";
+          rev = "19235589cb79ec5670445f64fe22ddd3a130e91d";
+          hash = "sha256-EOcUxTHkVgNNDq8wTSlCzMkR7l0U6DDPwKwddF1vjwA=";
         };
 
         nativeBuildInputs = [ pdm-backend ];
@@ -73,13 +73,13 @@ final: prev: {
     (python-final: python-prev: {
       # upgrade to latest version
       amaranth = (python-prev.amaranth.overrideAttrs (o: {
-        version = "0.4.3+unstable-2024-03-03";
+        version = "0.4.3+unstable-2024-03-05";
 
         src = final.fetchFromGitHub {
           owner = "amaranth-lang";
           repo = "amaranth";
-          rev = "127fe1fd2e33f94520ceff8e42f04383f5f10591";
-          hash = "sha256-cuwsrnmloI8KTQ9dKH+GT5xL9UhXQSv+zV9DgoQBDg8=";
+          rev = "161b01450ede96cf3d7b6999732f057465c2b7bb";
+          hash = "sha256-cOol0YDi4amWodv7Mm+v0XBicsTB8LJAJZ3c4FyqLc8=";
         };
       }));
 
