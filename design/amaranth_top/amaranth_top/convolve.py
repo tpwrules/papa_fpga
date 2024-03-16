@@ -401,7 +401,7 @@ def demo():
     for name in top.signature.members.keys():
         mod_traces.append(getattr(top, name))
 
-    clk_hack = sim._fragment.domains["sync"].clk
+    clk_hack = sim._design.fragment.domains["sync"].clk
     with sim.write_vcd("convolve_demo.vcd", "convolve_demo.gtkw",
             traces=[clk_hack, *mod_traces]):
         sim.run_until(10/(MIC_FREQ_HZ), run_passive=True)

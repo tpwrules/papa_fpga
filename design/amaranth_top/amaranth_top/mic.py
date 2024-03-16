@@ -417,7 +417,7 @@ def demo():
     for name in top.signature.members.keys():
         mod_traces.append(getattr(top, name))
 
-    clk_hack = sim._fragment.domains["sync"].clk
+    clk_hack = sim._design.fragment.domains["sync"].clk
     with sim.write_vcd("mic_demo.vcd", "mic_demo.gtkw",
             traces=[clk_hack, *mod_traces]):
         sim.run_until(1e-3, run_passive=True)

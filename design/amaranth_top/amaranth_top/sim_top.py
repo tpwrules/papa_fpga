@@ -79,7 +79,7 @@ def run_sim():
         t = getattr(top, name)
         if isinstance(t, Signal): mod_traces.append(t)
 
-    clk_hack = sim._fragment.domains["sync"].clk
+    clk_hack = sim._design.fragment.domains["sync"].clk
     with sim.write_vcd("sim_top.vcd", "sim_top.gtkw",
             traces=[clk_hack, *mod_traces]):
         sim.run_until((1/MIC_FREQ_HZ)*16, run_passive=True)

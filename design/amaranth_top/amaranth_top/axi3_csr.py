@@ -275,7 +275,7 @@ def demo():
     for name in top.__annotations__.keys(): # preserve source order
         mod_traces.append(getattr(top, name))
 
-    clk_hack = sim._fragment.domains["sync"].clk
+    clk_hack = sim._design.fragment.domains["sync"].clk
     with sim.write_vcd("axi_demo.vcd", "axi_demo.gtkw",
             traces=[clk_hack, *mod_traces]):
         sim.run_until(1e-3, run_passive=True)
