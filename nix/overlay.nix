@@ -14,14 +14,14 @@ final: prev: {
 
       buildPythonPackage rec {
         pname = "amaranth-soc";
-        version = "0.0.0+unstable-2024-03-04";
+        version = "0.0.0+unstable-2024-03-26";
         format = "pyproject";
 
         src = fetchFromGitHub {
           owner = "amaranth-lang";
           repo = "amaranth-soc";
-          rev = "19235589cb79ec5670445f64fe22ddd3a130e91d";
-          hash = "sha256-EOcUxTHkVgNNDq8wTSlCzMkR7l0U6DDPwKwddF1vjwA=";
+          rev = "8b1de15973edf51ebe4d5c86a1c9704b17578483";
+          hash = "sha256-f8RuFLc3cJuFqgHsp008hB4iM32QE3Qn/VjsJt1cBUE=";
         };
 
         nativeBuildInputs = [ pdm-backend ];
@@ -73,13 +73,13 @@ final: prev: {
     (python-final: python-prev: {
       # upgrade to latest version
       amaranth = (python-prev.amaranth.overrideAttrs (o: {
-        version = "0.4.3+unstable-2024-03-05";
+        version = "0.4.5+unstable-2024-04-04";
 
         src = final.fetchFromGitHub {
           owner = "amaranth-lang";
           repo = "amaranth";
-          rev = "161b01450ede96cf3d7b6999732f057465c2b7bb";
-          hash = "sha256-cOol0YDi4amWodv7Mm+v0XBicsTB8LJAJZ3c4FyqLc8=";
+          rev = "6857daff54bfa208b26a88a822a697105026902c";
+          hash = "sha256-PZ8i4mWUl1h3VTa0iZ0MD6GRIjerxGIuhcPPwsK/xNQ=";
         };
       }));
 
@@ -88,6 +88,34 @@ final: prev: {
       amaranth-boards = python-final.callPackage amaranth-boards {};
     })
   ];
+
+  # git rev needed for latest amaranth
+  yosys = prev.yosys.overrideAttrs (old: {
+    version = "0.39";
+
+    src = final.fetchFromGitHub {
+      owner = "YosysHQ";
+      repo = "yosys";
+      rev = "22c5ab90d1580b6d515a58cf1c8be380d188b989";
+      hash = "sha256-uOzWb611Y9d7zYbdqwSXNOurgLLHlANrLKdtFCa7IdA=";
+    };
+
+    # remove patch that doesn't apply and we don't care about
+    patches = builtins.filter (p: !(final.lib.strings.hasInfix "fix-clang-build.patch" (builtins.toString p))) old.patches;
+
+    # remove now in tree patch by converting to nop
+    postPatch = builtins.replaceStrings ["tail +3"] ["tail -n +3"] old.postPatch;
+  });
+
+  # git rev needed for latest yosys
+  abc-verifier = prev.abc-verifier.overrideAttrs (old: {
+      src = final.fetchFromGitHub {
+        owner = "yosyshq";
+        repo  = "abc";
+        rev   = "0cd90d0d2c5338277d832a1d890bed286486bcf5";
+        hash  = "sha256-1v/HOYF/ZdfR75eC3uYySKs2k6ZLCTUI0rtzPQs0hKQ=";
+      };
+  });
 
   design = prev.lib.makeScope prev.newScope (self: with self; {
     amaranth_top = callPackage ./design/amaranth_top {};
