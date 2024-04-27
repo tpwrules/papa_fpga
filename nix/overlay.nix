@@ -1,6 +1,7 @@
 final: prev: {
-  quartus-prime-lite = final.callPackage ./packages/quartus-prime {
+  quartus-prime-lite = prev.quartus-prime-lite.override {
     supportedDevices = [ "Cyclone V" ];
+    withQuesta = false;
   };
 
   pythonPackagesExtensions = let
