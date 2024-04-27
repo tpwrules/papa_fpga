@@ -15,14 +15,14 @@ final: prev: {
 
       buildPythonPackage rec {
         pname = "amaranth-soc";
-        version = "0.0.0+unstable-2024-03-26";
+        version = "0.0.0+unstable-2024-04-10";
         format = "pyproject";
 
         src = fetchFromGitHub {
           owner = "amaranth-lang";
           repo = "amaranth-soc";
-          rev = "8b1de15973edf51ebe4d5c86a1c9704b17578483";
-          hash = "sha256-f8RuFLc3cJuFqgHsp008hB4iM32QE3Qn/VjsJt1cBUE=";
+          rev = "ce4ad768dc590c38de0d76a560e76a94a615a782";
+          hash = "sha256-C5mxh0sGoTDWWVT07emJ8mQr6zIXxA02Uym9RV8ecDs=";
         };
 
         nativeBuildInputs = [ pdm-backend ];
@@ -47,14 +47,14 @@ final: prev: {
 
       buildPythonPackage rec {
         pname = "amaranth-boards";
-        version = "0.0.0+unstable-2024-02-28";
+        version = "0.0.0+unstable-2024-04-18";
         format = "pyproject";
 
         src = fetchFromGitHub {
           owner = "amaranth-lang";
           repo = "amaranth-boards";
-          rev = "b67996c48f1bc91412605acd7012f242514d3927";
-          sha256 = "sha256-C1NFu3vBaplju1HKrfzJa/z78H0AN09CZ4f5CeBdVuw=";
+          rev = "8be265b8ed89c1bbb4d9785a14dcfa415898a9d7";
+          sha256 = "sha256-vEw3LgdKaKLBurw07q/MKCaZNB028+vS59SZbMmrxeI=";
         };
 
         nativeBuildInputs = [ setuptools setuptools-scm ];
@@ -74,14 +74,23 @@ final: prev: {
     (python-final: python-prev: {
       # upgrade to latest version
       amaranth = (python-prev.amaranth.overrideAttrs (o: {
-        version = "0.4.5+unstable-2024-04-04";
+        version = "0.4.5+unstable-2024-04-20";
 
         src = final.fetchFromGitHub {
           owner = "amaranth-lang";
           repo = "amaranth";
-          rev = "6857daff54bfa208b26a88a822a697105026902c";
-          hash = "sha256-PZ8i4mWUl1h3VTa0iZ0MD6GRIjerxGIuhcPPwsK/xNQ=";
+          rev = "9201cc3179d53c9fcfb6443e571533d64dbdd417";
+          hash = "sha256-oIGcLM5Xa9hzSZar9+4oYgidEuugmC/idt1cb1bOkuo=";
         };
+
+        patches = (o.patches or []) ++ [
+          # requires PDM functionality we don't have
+          (final.fetchpatch {
+            url = "https://github.com/amaranth-lang/amaranth/commit/3fbed68365fb4f0ab5b14e305167467845adbd95.patch";
+            hash = "sha256-sTvX3+IAFRlidrqLTzqGh/CodJSR6zDaLqviaoPD8kA=";
+            revert = true;
+          })
+        ];
       }));
 
       amaranth-soc = python-final.callPackage amaranth-soc {};
@@ -92,13 +101,13 @@ final: prev: {
 
   # git rev needed for latest amaranth
   yosys = prev.yosys.overrideAttrs (old: {
-    version = "0.39";
+    version = "0.40";
 
     src = final.fetchFromGitHub {
       owner = "YosysHQ";
       repo = "yosys";
-      rev = "22c5ab90d1580b6d515a58cf1c8be380d188b989";
-      hash = "sha256-uOzWb611Y9d7zYbdqwSXNOurgLLHlANrLKdtFCa7IdA=";
+      rev = "refs/tags/yosys-0.40";
+      hash = "sha256-dUOPsHoknOjF9RPk2SfXKkKEa4beQR8svzykhpUdcU0=";
     };
 
     # remove patch that doesn't apply and we don't care about
