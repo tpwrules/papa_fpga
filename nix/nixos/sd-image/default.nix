@@ -52,6 +52,8 @@
     initialHashedPassword = "$y$j9T$QPt6M9GAEOhYriE0C8wnK0$ygMYgHlcRbmpBTeMxgqGRR4KVoEDH56wivA5G9OdB54";
   };
 
+  security.pam.services.sshd.allowNullPassword = true;
+
   # Allow the user to log in as root without a password.
   users.users.root.initialHashedPassword = "";
 
@@ -116,6 +118,7 @@
   services.openssh = {
     enable = true;
     settings.PermitRootLogin = "yes";
+    settings.PermitEmptyPasswords = "yes";
   };
 
   # ensure kernel modules for the FPGA are loaded so the bitstream load works
