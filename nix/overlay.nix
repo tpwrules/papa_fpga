@@ -54,7 +54,9 @@ final: prev: {
           owner = "amaranth-lang";
           repo = "amaranth-boards";
           rev = "8be265b8ed89c1bbb4d9785a14dcfa415898a9d7";
-          sha256 = "sha256-vEw3LgdKaKLBurw07q/MKCaZNB028+vS59SZbMmrxeI=";
+          # files change depending on git branch status
+          postFetch = "rm -f $out/.git_archival.txt $out/.gitattributes";
+          sha256 = "sha256-IkRmIINEjHI3wJkecBUeWz1mIRWZaa1QOYMMz6eeHNU=";
         };
 
         nativeBuildInputs = [ setuptools setuptools-scm ];
