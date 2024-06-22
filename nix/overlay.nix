@@ -4,6 +4,12 @@ final: prev: {
     withQuesta = false;
   };
 
+  vde2 = prev.vde2.override (old: {
+    wolfssl = old.wolfssl.overrideAttrs (old: {
+      configureFlags = builtins.filter (f: (f != "--enable-intelasm") && (f != "--enable-aesni")) old.configureFlags;
+    });
+  });
+
   pythonPackagesExtensions = let
     amaranth-soc =
       { lib
