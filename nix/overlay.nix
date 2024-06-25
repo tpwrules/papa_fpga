@@ -21,14 +21,14 @@ final: prev: {
 
       buildPythonPackage rec {
         pname = "amaranth-soc";
-        version = "0.0.0+unstable-2024-04-10";
+        version = "0.0.0+unstable-2024-06-10";
         format = "pyproject";
 
         src = fetchFromGitHub {
           owner = "amaranth-lang";
           repo = "amaranth-soc";
-          rev = "ce4ad768dc590c38de0d76a560e76a94a615a782";
-          hash = "sha256-C5mxh0sGoTDWWVT07emJ8mQr6zIXxA02Uym9RV8ecDs=";
+          rev = "e1b842800533f44924f21c3867bc2290084d100f";
+          hash = "sha256-GAGQEncONY566v8hLjGeZ7CRlOt36vHg+0a5xcB+g1Y=";
         };
 
         nativeBuildInputs = [ pdm-backend ];
@@ -47,29 +47,23 @@ final: prev: {
       , buildPythonPackage
       , fetchFromGitHub
       , amaranth
-      , setuptools
-      , setuptools-scm
+      , pdm-backend
       }:
 
       buildPythonPackage rec {
         pname = "amaranth-boards";
-        version = "0.0.0+unstable-2024-04-18";
+        version = "0.0.0+unstable-2024-06-22";
         format = "pyproject";
 
         src = fetchFromGitHub {
           owner = "amaranth-lang";
           repo = "amaranth-boards";
-          rev = "8be265b8ed89c1bbb4d9785a14dcfa415898a9d7";
-          # files change depending on git branch status
-          postFetch = "rm -f $out/.git_archival.txt $out/.gitattributes";
-          sha256 = "sha256-IkRmIINEjHI3wJkecBUeWz1mIRWZaa1QOYMMz6eeHNU=";
+          rev = "ad5a939b86020c53e0e193620b96ca19d5960192";
+          sha256 = "sha256-1a0LhDVSl0fSyRXwn/jf8JhvPwvZtlDc1pWKh4g+OW8=";
         };
 
-        nativeBuildInputs = [ setuptools setuptools-scm ];
+        nativeBuildInputs = [ pdm-backend ];
         propagatedBuildInputs = [ amaranth ];
-
-        # no tests
-        doCheck = false;
 
         meta = with lib; {
           description = "Board definitions for Amaranth HDL";
@@ -81,29 +75,45 @@ final: prev: {
   in prev.pythonPackagesExtensions ++ [
     (python-final: python-prev: {
       # upgrade to latest version
-      amaranth = (python-prev.amaranth.overrideAttrs (o: {
-        version = "0.4.5+unstable-2024-04-20";
+      amaranth = (python-prev.amaranth.overridePythonAttrs (o: {
+        version = "0.5.0";
 
         src = final.fetchFromGitHub {
           owner = "amaranth-lang";
           repo = "amaranth";
-          rev = "9201cc3179d53c9fcfb6443e571533d64dbdd417";
-          hash = "sha256-oIGcLM5Xa9hzSZar9+4oYgidEuugmC/idt1cb1bOkuo=";
+          rev = "a0750b89c6060d9f809159a012a26cff4e22e69d";
+          hash = "sha256-+EV2NgYSuCbYTQKeBUN+/D0attfrJ3cso7U6RjLEIbg=";
         };
 
-        patches = (o.patches or []) ++ [
-          # requires PDM functionality we don't have
-          (final.fetchpatch {
-            url = "https://github.com/amaranth-lang/amaranth/commit/3fbed68365fb4f0ab5b14e305167467845adbd95.patch";
-            hash = "sha256-sTvX3+IAFRlidrqLTzqGh/CodJSR6zDaLqviaoPD8kA=";
-            revert = true;
-          })
+        dependencies = (o.dependencies or []) ++ [
+          python-final.jschon
         ];
       }));
 
       amaranth-soc = python-final.callPackage amaranth-soc {};
 
       amaranth-boards = python-final.callPackage amaranth-boards {};
+
+      jschon = python-final.buildPythonPackage {
+        pname = "jschon";
+        version = "0.11.1";
+
+        src = final.fetchFromGitHub {
+          owner = "marksparkza";
+          repo = "jschon";
+          rev = "v0.11.1";
+          hash = "sha256-uOvEIEUEILsoLuV5U9AJCQAlT4iHQhsnSt65gfCiW0k=";
+          fetchSubmodules = true;
+        };
+
+        propagatedBuildInputs = [ python-final.rfc3986 ];
+
+        checkInputs = [
+          python-final.pytest
+          python-final.pytest-httpserver
+          python-final.hypothesis
+        ];
+      };
     })
   ];
 
