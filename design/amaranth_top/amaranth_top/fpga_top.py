@@ -1,4 +1,5 @@
 from amaranth import *
+from amaranth.lib import io
 from amaranth.lib.wiring import Component, In, Out, connect
 from amaranth.lib.cdc import ResetSynchronizer
 from amaranth.build import Resource, Pins, Attrs
@@ -81,42 +82,40 @@ class FPGATop(Elaboratable):
         status = Cat([platform.request("led", n+1).o for n in range(3)])
         button = platform.request("button", 0).i
 
-        # Amaranth includes the GPIO's power pins, but the original code didn't
+        # add each GPIO as its own resource
         def add_resources():
-            skip_pins = [11, 12, 29, 30] # 1-indexed
-            pins = []
-            skip_delta = 1
-            for pin_idx in range(36):
-                while len(skip_pins) > 0 and \
-                        pin_idx + skip_delta == skip_pins[0]:
-                    skip_delta += 1
-                    skip_pins = skip_pins[1:]
-                pins.append(pin_idx+skip_delta)
-
-            gpio_pins = list(str(p) for p in pins)
-            pgi, pgo = " ".join(gpio_pins[0:34]), " ".join(gpio_pins[34:36])
-
-            platform.add_resources([
-                Resource("gi", 0, Pins(pgi, dir="i", conn=("gpio", 0)),
-                        Attrs(IO_STANDARD="3.3-V LVTTL")),
-                Resource("go", 0, Pins(pgo, dir="o", conn=("gpio", 0)),
-                        Attrs(IO_STANDARD="3.3-V LVTTL")),
-                Resource("gi", 1, Pins(pgi, dir="i", conn=("gpio", 1)),
-                        Attrs(IO_STANDARD="3.3-V LVTTL")),
-                Resource("go", 1, Pins(pgo, dir="o", conn=("gpio", 1)),
-                        Attrs(IO_STANDARD="3.3-V LVTTL")),
-            ])
+            power_pins = [11, 12, 29, 30]
+            for pin in range(1, 41):
+                if pin in power_pins: continue
+                for conn in range(2):
+                    platform.add_resources([Resource(
+                        f"gpio{conn}",
+                        pin,
+                        Pins(f"{pin}", dir="io", conn=("gpio", conn)),
+                        Attrs(IO_STANDARD="3.3-V LVTTL"),
+                    )])
         add_resources()
 
-        GPIO_0_OUT = Signal(2)
-        GPIO_0_IN = Signal(34)
-        GPIO_1_OUT = Signal(2)
-        GPIO_1_IN = Signal(34)
-        m.d.comb += [
-            platform.request("go", 0).o.eq(GPIO_0_OUT),
-            platform.request("go", 1).o.eq(GPIO_1_OUT),
-            GPIO_0_IN.eq(platform.request("gi", 0).i),
-            GPIO_1_IN.eq(platform.request("gi", 1).i),
+        # tuple of (connector, board index)
+        sck_pins = [
+            (0, 40),
+            (1, 40),
+        ]
+
+        ws_pins = [
+            (0, 39),
+            (1, 39),
+        ]
+
+        mic_pins = [
+            (0, 38),
+            (1, 38),
+            (0, 37),
+            (1, 37),
+            (0, 36),
+            (1, 36),
+            (0, 35),
+            (1, 35),
         ]
 
         # set up HPS
@@ -163,16 +162,23 @@ class FPGATop(Elaboratable):
         ]
 
         # wire up microphone data bus
-        m.d.comb += [
-            GPIO_0_OUT[1].eq(top.mic_sck),
-            GPIO_0_OUT[0].eq(top.mic_ws),
-            GPIO_1_OUT[1].eq(top.mic_sck),
-            GPIO_1_OUT[0].eq(top.mic_ws),
-        ]
-        for mpi in range(0, NUM_MICS//2, 2):
-            m.d.comb += top.mic_data_raw[mpi].eq(GPIO_0_IN[33-(mpi//2)])
-            if mpi+1 < len(top.mic_data_raw):
-                m.d.comb += top.mic_data_raw[mpi+1].eq(GPIO_1_IN[33-(mpi//2)])
+        for ci, (conn, pin) in enumerate(sck_pins):
+            buf = io.Buffer("o", platform.request(f"gpio{conn}", pin, dir="-"))
+            m.submodules += buf
+
+            m.d.comb += buf.o.eq(top.mic_sck)
+
+        for ci, (conn, pin) in enumerate(ws_pins):
+            buf = io.Buffer("o", platform.request(f"gpio{conn}", pin, dir="-"))
+            m.submodules += buf
+
+            m.d.comb += buf.o.eq(top.mic_ws)
+
+        for ci, (conn, pin) in enumerate(mic_pins):
+            buf = io.Buffer("i", platform.request(f"gpio{conn}", pin, dir="-"))
+            m.submodules += buf
+
+            m.d.comb += top.mic_data_raw[ci].eq(buf.i)
 
         # hook up audio RAM bus to AXI port
         m.submodules.f2h = f2h = hps.request_fpga2hps_port(data_width=32)
