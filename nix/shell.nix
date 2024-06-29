@@ -10,6 +10,7 @@ pkgs.mkShell {
       p.amaranth-soc
       p.amaranth-boards
       p.numpy
+      p.matplotlib
     ]))
     pkgs.yosys
 
