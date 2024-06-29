@@ -39,12 +39,13 @@ def recv_thread_fn(recv_q, sock):
 
 def animate(i):
     global recv_q
-    plt.cla()
     bit = recv_q.get()
-    plt.plot(range(len(bit)), bit)
-    plt.ylim([-32768, 32767])
-    plt.title(i)
-    plt.legend(range(1, 9), loc="upper right")
+    for p in range(CHAN_COUNT):
+        plt.subplot(CHAN_COUNT, 1, p+1)
+        plt.cla()
+        plt.plot(range(len(bit)), bit[:, p])
+        plt.ylim([-32768, 32767])
+        plt.title(f"{i}, {p}")
 
 def main():
     global recv_q
